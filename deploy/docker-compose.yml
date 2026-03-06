@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  rust-shark:
+    image: ghcr.io/annihilater/rust-shark:latest
+    container_name: rust-shark
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3000
+      - DATABASE_URL=sqlite:///app/data/rust-shark.db
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production-32bytes!!}
+      - JWT_SECRET=${JWT_SECRET:-change-jwt-secret-in-production!!!}
+      - JWT_EXPIRY_HOURS=${JWT_EXPIRY_HOURS:-24}
+      - DATA_DIR=/app/data
+      - RUST_LOG=${RUST_LOG:-info}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

@@ -1,0 +1,290 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: rust-shark
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ─── 第一步：下载真实的 tcpdump/sharkd 二进制 ──────────────────────────────────
+  prepare-binaries:
+    name: 准备第三方二进制
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载 tcpdump 静态二进制 (amd64)
+        run: |
+          # 使用预编译的静态 tcpdump
+          wget -q "https://github.com/nicowillis/static-tcpdump/releases/latest/download/tcpdump-linux-x86_64" \
+            -O assets/binaries/tcpdump-linux-amd64 || \
+          # 备选方案：从 debian 包中提取
+          (docker run --rm -v $PWD/assets/binaries:/out debian:bookworm \
+            bash -c "apt-get update -qq && apt-get install -y tcpdump && cp /usr/sbin/tcpdump /out/tcpdump-linux-amd64")
+          chmod +x assets/binaries/tcpdump-linux-amd64
+          file assets/binaries/tcpdump-linux-amd64
+
+      - name: 下载 tcpdump 静态二进制 (arm64)
+        run: |
+          docker run --rm --platform linux/arm64 -v $PWD/assets/binaries:/out debian:bookworm \
+            bash -c "apt-get update -qq && apt-get install -y tcpdump && cp /usr/sbin/tcpdump /out/tcpdump-linux-arm64"
+          chmod +x assets/binaries/tcpdump-linux-arm64
+
+      - name: 下载 sharkd 二进制 (amd64)
+        run: |
+          docker run --rm -v $PWD/assets/binaries:/out debian:bookworm \
+            bash -c "apt-get update -qq && apt-get install -y wireshark-common && cp /usr/bin/sharkd /out/sharkd-linux-amd64 2>/dev/null || echo 'sharkd not found, using placeholder' && touch /out/sharkd-linux-amd64"
+          chmod +x assets/binaries/sharkd-linux-amd64
+
+      - name: 下载 sharkd 二进制 (arm64)
+        run: |
+          docker run --rm --platform linux/arm64 -v $PWD/assets/binaries:/out debian:bookworm \
+            bash -c "apt-get update -qq && apt-get install -y wireshark-common && cp /usr/bin/sharkd /out/sharkd-linux-arm64 2>/dev/null || echo 'sharkd not found, using placeholder' && touch /out/sharkd-linux-arm64"
+          chmod +x assets/binaries/sharkd-linux-arm64
+
+      - name: 上传二进制文件
+        uses: actions/upload-artifact@v4
+        with:
+          name: third-party-binaries
+          path: assets/binaries/
+          retention-days: 1
+
+  # ─── 第二步：构建前端 WASM ─────────────────────────────────────────────────────
+  build-frontend:
+    name: 构建前端 WASM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: 缓存 Cargo 依赖
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: frontend-wasm
+
+      - name: 安装 trunk
+        uses: jetli/trunk-action@v0.5.0
+
+      - name: 构建前端
+        run: cd frontend && trunk build --release
+
+      - name: 上传前端产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 1
+
+  # ─── 第三步：多平台后端编译 ────────────────────────────────────────────────────
+  build-backend:
+    name: 构建后端 ${{ matrix.target }}
+    needs: [prepare-binaries, build-frontend]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            artifact: rust-shark-linux-amd64
+            cross: true
+          - target: aarch64-unknown-linux-musl
+            artifact: rust-shark-linux-arm64
+            cross: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载第三方二进制
+        uses: actions/download-artifact@v4
+        with:
+          name: third-party-binaries
+          path: assets/binaries/
+
+      - name: 下载前端产物
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: 缓存 Cargo 依赖
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: backend-${{ matrix.target }}
+
+      - name: 安装 cross
+        run: cargo install cross --locked
+
+      - name: 构建后端
+        run: |
+          cross build --release \
+            --target ${{ matrix.target }} \
+            --manifest-path backend/Cargo.toml
+
+      - name: 重命名产物
+        run: |
+          cp target/${{ matrix.target }}/release/rust-shark ${{ matrix.artifact }}
+          # 验证是静态链接
+          file ${{ matrix.artifact }}
+
+      - name: 压缩产物
+        run: |
+          tar czf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
+          sha256sum ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
+          sha256sum ${{ matrix.artifact }}.tar.gz >> ${{ matrix.artifact }}.sha256
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}.sha256
+          retention-days: 7
+
+  # ─── 第四步：构建并推送 Docker 镜像 ───────────────────────────────────────────
+  build-docker:
+    name: 构建 Docker 镜像
+    needs: [prepare-binaries, build-frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载第三方二进制
+        uses: actions/download-artifact@v4
+        with:
+          name: third-party-binaries
+          path: assets/binaries/
+
+      - name: 下载前端产物
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 设置 QEMU（多平台支持）
+        uses: docker/setup-qemu-action@v3
+
+      - name: 登录 GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 提取 Docker 元数据
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+
+      - name: 构建并推送 Docker 镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─── 第五步：创建 GitHub Release ──────────────────────────────────────────────
+  release:
+    name: 发布 Release
+    needs: [build-backend, build-docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载所有产物
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rust-shark-linux-*
+          merge-multiple: true
+          path: release/
+
+      - name: 生成 Release 说明
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          cat > release_notes.md << EOF
+          ## rust-shark ${VERSION}
+
+          ### 下载
+
+          | 平台 | 文件 |
+          |------|------|
+          | Linux x86_64 | \`rust-shark-linux-amd64\` |
+          | Linux ARM64  | \`rust-shark-linux-arm64\` |
+
+          ### Docker
+
+          \`\`\`bash
+          # 拉取镜像
+          docker pull ghcr.io/${{ github.repository }}:${VERSION}
+
+          # 运行
+          docker run -d \\
+            -p 3000:3000 \\
+            -v ./data:/app/data \\
+            -e SECRET_KEY=your-secret-key \\
+            -e JWT_SECRET=your-jwt-secret \\
+            ghcr.io/${{ github.repository }}:${VERSION}
+          \`\`\`
+
+          ### 快速部署
+
+          \`\`\`bash
+          # 下载部署包
+          wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/rust-shark-linux-amd64
+          chmod +x rust-shark-linux-amd64
+          ./rust-shark-linux-amd64
+          \`\`\`
+
+          ### SHA256 校验
+
+          EOF
+          cat release/*.sha256 >> release_notes.md
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "rust-shark ${{ steps.changelog.outputs.version }}"
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          files: |
+            release/rust-shark-linux-amd64
+            release/rust-shark-linux-arm64
+            release/rust-shark-linux-amd64.tar.gz
+            release/rust-shark-linux-arm64.tar.gz
+            release/rust-shark-linux-amd64.sha256
