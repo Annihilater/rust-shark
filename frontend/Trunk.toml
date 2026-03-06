@@ -2,7 +2,7 @@
 target = "wasm32-unknown-unknown"
 
 [watch]
-ignore = []
+ignore = ["../target", "dist"]
 
 [serve]
 address = "127.0.0.1"
