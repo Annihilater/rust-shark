@@ -14,17 +14,20 @@ impl SelectOption {
 
 /// 自定义下拉选择框
 ///
+/// Props:
 /// - `options`     — 选项列表
-/// - `value`       — 当前选中值的 Signal
-/// - `on_change`   — 选中值变化回调，传入新值（空串表示选了 placeholder）
-/// - `placeholder` — 可选占位文字，显示为首行灰色项，对应空值 `""`
-/// - `class`       — 附加 CSS 类
+/// - `value`       — 当前选中值的 Signal（空串 = 未选）
+/// - `on_change`   — 选中值变化回调
+/// - `placeholder` — 首行灰色占位项文字，对应空值 `""`
+/// - `disabled`    — 禁用整个下拉（仅显示 placeholder，不可交互）
+/// - `class`       — 附加外层 CSS 类
 #[component]
 pub fn Select(
     options: Vec<SelectOption>,
     #[prop(into)] value: Signal<String>,
     on_change: Callback<String>,
     #[prop(optional, into)] placeholder: Option<String>,
+    #[prop(optional, into)] disabled: Option<Signal<bool>>,
     #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
     let open        = RwSignal::new(false);
@@ -32,13 +35,14 @@ pub fn Select(
     let placeholder = StoredValue::new(placeholder);
     let extra_class = class.unwrap_or_default();
 
-    // 当前显示文字（优先 options 里匹配，否则 placeholder）
+    // 是否禁用
+    let is_disabled = move || disabled.map(|s| s.get()).unwrap_or(false);
+
+    // 当前显示文字
     let selected_label = move || {
         let v = value.get();
         if v.is_empty() {
-            return placeholder.with_value(|p| {
-                p.clone().unwrap_or_default()
-            });
+            return placeholder.with_value(|p| p.clone().unwrap_or_default());
         }
         options.with_value(|opts| {
             opts.iter()
@@ -48,9 +52,19 @@ pub fn Select(
         })
     };
 
-    // 按钮文字颜色：空值时显示灰色占位
+    // 触发按钮样式
+    let btn_class = move || {
+        let base = "w-full flex items-center justify-between border rounded-lg px-3 py-2 text-sm focus:outline-none transition-colors";
+        if is_disabled() {
+            format!("{} bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed", base)
+        } else {
+            format!("{} bg-gray-700 border-gray-600 text-white hover:border-gray-500 focus:border-blue-500 cursor-pointer", base)
+        }
+    };
+
+    // 文字颜色
     let label_class = move || {
-        if value.get().is_empty() { "text-gray-400" } else { "text-white" }
+        if is_disabled() || value.get().is_empty() { "text-gray-400" } else { "text-white" }
     };
 
     view! {
@@ -58,19 +72,20 @@ pub fn Select(
             // ── 触发按钮 ────────────────────────────────────────────────
             <button
                 type="button"
-                class="w-full flex items-center justify-between bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 hover:border-gray-500 transition-colors"
+                class=btn_class
+                disabled=move || is_disabled()
                 on:click=move |e| {
                     e.stop_propagation();
-                    open.update(|v| *v = !*v);
+                    if !is_disabled() {
+                        open.update(|v| *v = !*v);
+                    }
                 }
             >
                 <span class=label_class>{move || selected_label()}</span>
                 <span class=move || {
-                    if open.get() {
-                        "text-gray-400 transition-transform duration-150 rotate-180 inline-block ml-2 shrink-0"
-                    } else {
-                        "text-gray-400 transition-transform duration-150 inline-block ml-2 shrink-0"
-                    }
+                    let rotate = if open.get() { "rotate-180" } else { "" };
+                    let color  = if is_disabled() { "text-gray-600" } else { "text-gray-400" };
+                    format!("{} {} transition-transform duration-150 inline-block ml-2 shrink-0", color, rotate)
                 }>"▾"</span>
             </button>
 
@@ -83,7 +98,7 @@ pub fn Select(
             <Show when=move || open.get()>
                 <div class="absolute z-20 mt-1 w-full bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden">
 
-                    // placeholder 行（如果有）
+                    // placeholder 行
                     {placeholder.with_value(|p| p.clone()).map(|ph| {
                         view! {
                             <button
