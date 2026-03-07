@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tracing::info;
 
@@ -93,27 +94,42 @@ impl SharkdSession {
     }
 
     async fn run_sharkd_cmd(&self, cmd: &serde_json::Value) -> Result<serde_json::Value> {
-        // sharkd 单次模式：通过 stdin/stdout 通信
-        let _input = format!(
+        // sharkd 单次模式：先发 load 命令加载文件，再发查询命令
+        let input = format!(
             "{{\"req\":\"load\",\"file\":\"{}\"}}\n{}\n",
             self.pcap_path,
             cmd.to_string()
         );
 
-        let output = Command::new(&self.sharkd_path)
+        let mut child = Command::new(&self.sharkd_path)
             .arg("-")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
             .spawn()
-            .context("启动 sharkd 失败")?
-            .wait_with_output()
-            .await?;
+            .context("启动 sharkd 失败")?;
 
-        // 解析最后一行 JSON 输出
+        // 写入命令到 stdin
+        if let Some(stdin) = child.stdin.take() {
+            let mut stdin = stdin;
+            stdin.write_all(input.as_bytes()).await?;
+            stdin.flush().await?;
+            // drop stdin 以关闭管道，让 sharkd 知道输入结束
+            drop(stdin);
+        }
+
+        let output = child.wait_with_output().await?;
+
+        // sharkd 输出多行 JSON，每行对应一个请求的响应
+        // 第一行是 load 响应，最后一行是查询响应
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let last_line = stdout.lines().last().unwrap_or("{}");
-        let value: serde_json::Value = serde_json::from_str(last_line)?;
+        let last_line = stdout
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .last()
+            .unwrap_or("{}");
+        let value: serde_json::Value = serde_json::from_str(last_line)
+            .unwrap_or(serde_json::Value::Object(Default::default()));
 
         Ok(value)
     }

@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use wasm_bindgen::JsCast;
 use crate::components::{layout::Layout, modal::Modal, select::{Select, SelectOption}};
 use crate::store::use_auth;
 
@@ -176,7 +177,39 @@ pub fn CapturesPage() -> impl IntoView {
         });
     });
 
-    // ── 停止任务 ─────────────────────────────────────────────────────────
+    // ── 下载文件（带 token，用 gloo_net fetch + blob URL） ──────────────
+    let on_download = move |id: String| {
+        leptos::task::spawn_local(async move {
+            let url = format!("/api/captures/{}/download", id);
+            let token = crate::api::auth_header();
+            let resp = gloo_net::http::Request::get(&url)
+                .header("Authorization", &token)
+                .send()
+                .await;
+            match resp {
+                Ok(r) if r.ok() => {
+                    if let Ok(bytes) = r.binary().await {
+                        // 构造 Blob 并触发下载
+                        let uint8 = js_sys::Uint8Array::from(bytes.as_slice());
+                        let array = js_sys::Array::new();
+                        array.push(&uint8.buffer());
+                        let blob = web_sys::Blob::new_with_u8_array_sequence(&array).unwrap();
+                        let url = web_sys::Url::create_object_url_with_blob(&blob).unwrap();
+                        let doc = web_sys::window().unwrap().document().unwrap();
+                        let a = doc.create_element("a").unwrap();
+                        a.set_attribute("href", &url).ok();
+                        a.set_attribute("download", &format!("capture-{}.pcap", id)).ok();
+                        let body = doc.body().unwrap();
+                        body.append_child(&a).ok();
+                        a.unchecked_ref::<web_sys::HtmlElement>().click();
+                        body.remove_child(&a).ok();
+                        web_sys::Url::revoke_object_url(&url).ok();
+                    }
+                }
+                _ => {}
+            }
+        });
+    };
     let on_stop = move |id: String| {
         stopping_id.set(Some(id.clone()));
         leptos::task::spawn_local(async move {
@@ -384,12 +417,13 @@ pub fn CapturesPage() -> impl IntoView {
                                                 </div>
                                             }.into_any()
                                         } else if is_done {
+                                            let id_dl2 = id_dl.clone();
                                             view! {
                                                 <div class="flex gap-2">
-                                                    <a
-                                                        href=format!("/api/captures/{}/download", id_dl)
+                                                    <button
                                                         class="bg-gray-700 hover:bg-gray-600 text-sm px-3 py-1.5 rounded-lg transition-colors"
-                                                    >"下载"</a>
+                                                        on:click=move |_| on_download(id_dl.clone())
+                                                    >"下载"</button>
                                                     <a
                                                         href=format!("/captures/{}", id_ana)
                                                         class="bg-blue-700 hover:bg-blue-600 text-sm px-3 py-1.5 rounded-lg transition-colors"

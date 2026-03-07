@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 use serde::Deserialize;
+use wasm_bindgen::JsCast;
 use crate::components::layout::Layout;
 use crate::store::use_auth;
 
@@ -72,6 +73,39 @@ pub fn CaptureDetailPage() -> impl IntoView {
         });
     };
 
+    let on_download = move |id: String| {
+        leptos::task::spawn_local(async move {
+            let url = format!("/api/captures/{}/download", id);
+            let token = crate::api::auth_header();
+            let resp = gloo_net::http::Request::get(&url)
+                .header("Authorization", &token)
+                .send()
+                .await;
+            if let Ok(r) = resp {
+                if r.ok() {
+                    if let Ok(bytes) = r.binary().await {
+                        let uint8 = js_sys::Uint8Array::from(bytes.as_slice());
+                        let array = js_sys::Array::new();
+                        array.push(&uint8.buffer());
+                        let blob = web_sys::Blob::new_with_u8_array_sequence(&array).unwrap();
+                        let obj_url = web_sys::Url::create_object_url_with_blob(&blob).unwrap();
+                        let doc = web_sys::window().unwrap().document().unwrap();
+                        let a = doc.create_element("a").unwrap();
+                        a.set_attribute("href", &obj_url).ok();
+                        a.set_attribute("download", &format!("capture-{}.pcap", id)).ok();
+                        let body = doc.body().unwrap();
+                        body.append_child(&a).ok();
+                        a.unchecked_ref::<web_sys::HtmlElement>().click();
+                        body.remove_child(&a).ok();
+                        web_sys::Url::revoke_object_url(&obj_url).ok();
+                    }
+                }
+            }
+        });
+    };
+
+    let capture_id_for_dl = capture_id;
+
     view! {
         <Layout>
             <div class="max-w-full">
@@ -96,10 +130,10 @@ pub fn CaptureDetailPage() -> impl IntoView {
                         class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
                         on:click=move |_| load_packets()
                     >"应用过滤"</button>
-                    <a
-                        href=move || format!("/api/captures/{}/download", capture_id())
+                    <button
                         class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm"
-                    >"下载 PCAP"</a>
+                        on:click=move |_| on_download(capture_id_for_dl())
+                    >"下载 PCAP"</button>
                 </div>
 
                 {move || error.get().map(|e| view! {
@@ -126,6 +160,10 @@ pub fn CaptureDetailPage() -> impl IntoView {
                                     if loading.get() {
                                         view! {
                                             <tr><td colspan="7" class="text-center py-8 text-gray-500">"加载中..."</td></tr>
+                                        }.into_any()
+                                    } else if packets.get().is_empty() {
+                                        view! {
+                                            <tr><td colspan="7" class="text-center py-8 text-gray-500">"无数据包（可能需要 sharkd 支持）"</td></tr>
                                         }.into_any()
                                     } else {
                                         packets.get().into_iter().map(|p| {
