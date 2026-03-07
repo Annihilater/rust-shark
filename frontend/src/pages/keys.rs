@@ -329,9 +329,9 @@ pub fn KeysPage() -> impl IntoView {
                     let cmd_copied   = RwSignal::new(false);
                     let pubkey_copied = RwSignal::new(false);
 
-                    // 写入公钥的命令
+                    // 写入公钥的命令（先确保 .ssh 目录存在并设置正确权限）
                     let install_cmd = format!(
-                        "echo \"{}\" >> ~/.ssh/authorized_keys",
+                        "mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"{}\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys",
                         k.public_key.trim()
                     );
                     let cmd_for_copy    = install_cmd.clone();
