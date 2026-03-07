@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::components::{layout::Layout, modal::Modal};
+use crate::components::{layout::Layout, modal::Modal, select::{Select, SelectOption}};
 use crate::store::use_auth;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -47,6 +47,14 @@ struct Interface {
     name: String,
 }
 
+/// 认证方式固定选项
+fn auth_type_options() -> Vec<SelectOption> {
+    vec![
+        SelectOption::new("key",      "SSH 密钥（推荐）"),
+        SelectOption::new("password", "密码"),
+    ]
+}
+
 #[component]
 pub fn ServersPage() -> impl IntoView {
     let auth = use_auth();
@@ -56,21 +64,22 @@ pub fn ServersPage() -> impl IntoView {
         }
     });
 
-    let servers = RwSignal::new(Vec::<Server>::new());
-    let keys = RwSignal::new(Vec::<SshKey>::new());
+    let servers    = RwSignal::new(Vec::<Server>::new());
+    let keys       = RwSignal::new(Vec::<SshKey>::new());
     let show_modal = RwSignal::new(false);
     let testing_id = RwSignal::new(Option::<String>::None);
     let test_result = RwSignal::new(Option::<TestResult>::None);
 
     // 表单字段
-    let name = RwSignal::new(String::new());
-    let host = RwSignal::new(String::new());
-    let port = RwSignal::new("22".to_string());
-    let username = RwSignal::new("root".to_string());
+    let name      = RwSignal::new(String::new());
+    let host      = RwSignal::new(String::new());
+    let port      = RwSignal::new("22".to_string());
+    let username  = RwSignal::new("root".to_string());
     let auth_type = RwSignal::new("key".to_string());
-    let ssh_key_id = RwSignal::new(Option::<String>::None);
-    let password = RwSignal::new(String::new());
-    let error = RwSignal::new(Option::<String>::None);
+    // 密钥选择用空串表示"未选择"
+    let ssh_key_id_str = RwSignal::new(String::new());
+    let password  = RwSignal::new(String::new());
+    let error     = RwSignal::new(Option::<String>::None);
 
     let load_servers = move || {
         leptos::task::spawn_local(async move {
@@ -93,19 +102,29 @@ pub fn ServersPage() -> impl IntoView {
 
     let on_create = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
+        error.set(None);
+        let key_id = ssh_key_id_str.get();
         let req = CreateServerRequest {
             name: name.get(),
             host: host.get(),
             port: port.get().parse().ok(),
             username: username.get(),
             auth_type: auth_type.get(),
-            ssh_key_id: ssh_key_id.get(),
+            ssh_key_id: if key_id.is_empty() { None } else { Some(key_id) },
             password: if auth_type.get() == "password" { Some(password.get()) } else { None },
         };
         leptos::task::spawn_local(async move {
             match crate::api::post::<_, Server>("/api/servers", &req).await {
                 Ok(_) => {
                     show_modal.set(false);
+                    // 重置表单
+                    name.set(String::new());
+                    host.set(String::new());
+                    port.set("22".to_string());
+                    username.set("root".to_string());
+                    auth_type.set("key".to_string());
+                    ssh_key_id_str.set(String::new());
+                    password.set(String::new());
                     load_servers();
                 }
                 Err(e) => error.set(Some(e)),
@@ -145,66 +164,83 @@ pub fn ServersPage() -> impl IntoView {
                     <h1 class="text-2xl font-bold">"服务器管理"</h1>
                     <button
                         class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-                        on:click=move |_| show_modal.set(true)
+                        on:click=move |_| {
+                            error.set(None);
+                            show_modal.set(true);
+                        }
                     >"+ 添加服务器"</button>
                 </div>
 
-                // 测试结果展示
-                {move || test_result.get().map(|r| view! {
-                    <div class=if r.success { "bg-green-900/40 border border-green-700 rounded-xl p-4 mb-4" } else { "bg-red-900/40 border border-red-700 rounded-xl p-4 mb-4" }>
-                        <div class="flex items-center gap-2 font-medium">
-                            {if r.success { "✅ 连接成功" } else { "❌ 连接失败" }}
+                // 测试结果横幅
+                {move || test_result.get().map(|r| {
+                    let banner_class = if r.success {
+                        "bg-green-900/40 border border-green-700 rounded-xl p-4 mb-4"
+                    } else {
+                        "bg-red-900/40 border border-red-700 rounded-xl p-4 mb-4"
+                    };
+                    view! {
+                        <div class=banner_class>
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2 font-medium">
+                                    {if r.success { "✅ 连接成功" } else { "❌ 连接失败" }}
+                                </div>
+                                <button class="text-gray-400 hover:text-white text-sm"
+                                    on:click=move |_| test_result.set(None)>"✕"</button>
+                            </div>
+                            <p class="text-sm text-gray-300 mt-1">{r.message.clone()}</p>
+                            {r.tcpdump_version.map(|v| view! {
+                                <p class="text-sm text-green-400 mt-1">"tcpdump: "{v}</p>
+                            })}
                         </div>
-                        <p class="text-sm text-gray-300 mt-1">{r.message}</p>
-                        {r.tcpdump_version.map(|v| view! {
-                            <p class="text-sm text-green-400 mt-1">"tcpdump: "{v}</p>
-                        })}
-                    </div>
+                    }
                 })}
 
+                // 服务器列表
                 <div class="space-y-3">
                     {move || servers.get().into_iter().map(|server| {
-                        let id = server.id.clone();
-                        let id2 = server.id.clone();
-                        let is_testing = testing_id.get() == Some(id.clone());
+                        let id_dis    = server.id.clone();  // disabled 闭包
+                        let id_label  = server.id.clone();  // 按钮文字闭包
+                        let id_test   = server.id.clone();  // on_test
+                        let id_delete = server.id.clone();  // on_delete
                         let status_color = match server.status.as_str() {
-                            "online" => "text-green-400",
+                            "online"  => "text-green-400",
                             "offline" => "text-red-400",
-                            _ => "text-gray-400",
+                            _         => "text-gray-400",
+                        };
+                        let status_label = match server.status.as_str() {
+                            "online"  => "● 在线",
+                            "offline" => "● 离线",
+                            _         => "● 未知",
                         };
                         view! {
                             <div class="bg-gray-800 border border-gray-700 rounded-xl p-4">
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex items-center gap-2 mb-0.5">
                                             <span class="font-medium">{server.name}</span>
                                             <span class=format!("text-xs {}", status_color)>
-                                                {match server.status.as_str() {
-                                                    "online" => "● 在线",
-                                                    "offline" => "● 离线",
-                                                    _ => "● 未知",
-                                                }}
+                                                {status_label}
                                             </span>
                                         </div>
-                                        <p class="text-sm text-gray-400 mt-0.5 font-mono">
+                                        <p class="text-sm text-gray-400 font-mono">
                                             {server.username}"@"{server.host}":"{server.port}
                                         </p>
                                         <p class="text-xs text-gray-500 mt-0.5">
                                             "认证: "
-                                            {if server.auth_type == "key" { "SSH密钥" } else { "密码" }}
+                                            {if server.auth_type == "key" { "SSH 密钥" } else { "密码" }}
                                         </p>
                                     </div>
-                                    <div class="flex gap-2">
+                                    <div class="flex items-center gap-2">
                                         <button
                                             class="bg-gray-700 hover:bg-gray-600 text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                                            disabled=move || is_testing
-                                            on:click=move |_| on_test(id.clone())
+                                            disabled=move || testing_id.get() == Some(id_dis.clone())
+                                            on:click=move |_| on_test(id_test.clone())
                                         >
-                                            {if is_testing { "测试中..." } else { "测试连接" }}
+                                            {move || if testing_id.get() == Some(id_label.clone()) { "测试中…" } else { "测试连接" }}
                                         </button>
                                         <button
                                             class="text-red-400 hover:text-red-300 text-sm px-3 py-1.5"
-                                            on:click=move |_| on_delete(id2.clone())
+                                            on:click=move |_| on_delete(id_delete.clone())
                                         >"删除"</button>
                                     </div>
                                 </div>
@@ -221,84 +257,118 @@ pub fn ServersPage() -> impl IntoView {
                 </div>
             </div>
 
-            // 添加服务器弹窗
+            // ── 添加服务器弹窗 ─────────────────────────────────────────
             <Modal
                 show=show_modal.read_only()
                 title="添加服务器"
                 on_close=Callback::new(move |_| show_modal.set(false))
             >
                 <form on:submit=on_create class="space-y-3">
+                    // 名称 + 端口
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-400 mb-1">"名称"</label>
-                            <input class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                                placeholder="生产服务器" prop:value=name
-                                on:input=move |ev| name.set(event_target_value(&ev)) required/>
+                            <input
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                placeholder="生产服务器"
+                                prop:value=name
+                                on:input=move |ev| name.set(event_target_value(&ev))
+                                required
+                            />
                         </div>
                         <div>
                             <label class="block text-xs text-gray-400 mb-1">"端口"</label>
-                            <input class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                                type="number" placeholder="22" prop:value=port
-                                on:input=move |ev| port.set(event_target_value(&ev))/>
+                            <input
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                type="number" placeholder="22"
+                                prop:value=port
+                                on:input=move |ev| port.set(event_target_value(&ev))
+                            />
                         </div>
                     </div>
+
+                    // 主机地址
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">"主机地址"</label>
-                        <input class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                            placeholder="192.168.1.100" prop:value=host
-                            on:input=move |ev| host.set(event_target_value(&ev)) required/>
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">"用户名"</label>
-                        <input class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                            placeholder="root" prop:value=username
-                            on:input=move |ev| username.set(event_target_value(&ev)) required/>
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">"认证方式"</label>
-                        <select class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                            on:change=move |ev| auth_type.set(event_target_value(&ev))>
-                            <option value="key">"SSH 密钥（推荐）"</option>
-                            <option value="password">"密码"</option>
-                        </select>
+                        <input
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            placeholder="192.168.1.100"
+                            prop:value=host
+                            on:input=move |ev| host.set(event_target_value(&ev))
+                            required
+                        />
                     </div>
 
+                    // 用户名
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">"用户名"</label>
+                        <input
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            placeholder="root"
+                            prop:value=username
+                            on:input=move |ev| username.set(event_target_value(&ev))
+                            required
+                        />
+                    </div>
+
+                    // 认证方式
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">"认证方式"</label>
+                        <Select
+                            options=auth_type_options()
+                            value=auth_type.read_only()
+                            on_change=Callback::new(move |v| {
+                                auth_type.set(v);
+                                ssh_key_id_str.set(String::new());
+                            })
+                        />
+                    </div>
+
+                    // 密钥选择 或 密码输入（根据认证方式动态切换）
                     {move || if auth_type.get() == "key" {
-                        let ks = keys.get();
+                        let key_options: Vec<SelectOption> = keys.get()
+                            .into_iter()
+                            .map(|k| SelectOption::new(k.id, k.name))
+                            .collect();
                         view! {
                             <div>
                                 <label class="block text-xs text-gray-400 mb-1">"选择密钥"</label>
-                                <select class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                                    on:change=move |ev| {
-                                        let v = event_target_value(&ev);
-                                        ssh_key_id.set(if v.is_empty() { None } else { Some(v) });
-                                    }>
-                                    <option value="">"-- 选择密钥 --"</option>
-                                    {ks.into_iter().map(|k| {
-                                        let kid = k.id.clone();
-                                        view! { <option value=kid>{k.name}</option> }
-                                    }).collect::<Vec<_>>()}
-                                </select>
+                                <Select
+                                    options=key_options
+                                    value=ssh_key_id_str.read_only()
+                                    on_change=Callback::new(move |v| ssh_key_id_str.set(v))
+                                    placeholder="-- 选择密钥 --"
+                                />
                             </div>
                         }.into_any()
                     } else {
                         view! {
                             <div>
                                 <label class="block text-xs text-gray-400 mb-1">"密码"</label>
-                                <input class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                                    type="password" prop:value=password
-                                    on:input=move |ev| password.set(event_target_value(&ev))/>
+                                <input
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                    type="password"
+                                    prop:value=password
+                                    on:input=move |ev| password.set(event_target_value(&ev))
+                                />
                             </div>
                         }.into_any()
                     }}
 
+                    // 错误信息
                     {move || error.get().map(|e| view! {
                         <div class="bg-red-900/50 border border-red-700 text-red-300 px-3 py-2 rounded-lg text-sm">{e}</div>
                     })}
+
+                    // 操作按钮
                     <div class="flex gap-3 pt-1">
-                        <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm">"添加"</button>
-                        <button type="button" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm"
-                            on:click=move |_| show_modal.set(false)>"取消"</button>
+                        <button type="submit"
+                            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
+                        >"添加"</button>
+                        <button type="button"
+                            class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                            on:click=move |_| show_modal.set(false)
+                        >"取消"</button>
                     </div>
                 </form>
             </Modal>
