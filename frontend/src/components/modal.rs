@@ -5,11 +5,10 @@ use wasm_bindgen::JsCast;
 #[component]
 pub fn Modal(
     #[prop(into)] show: Signal<bool>,
-    #[prop(into)] title: String,
+    #[prop(into)] title: Signal<String>,
     on_close: Callback<()>,
     children: ChildrenFn,
 ) -> impl IntoView {
-    let title    = StoredValue::new(title);
     let children = StoredValue::new(children);
 
     // 弹窗打开时在 window 上注册 keydown 监听，关闭时自动移除
@@ -48,10 +47,10 @@ pub fn Modal(
             >
                 <div
                     class="bg-gray-800 rounded-xl p-6 w-full max-w-lg shadow-2xl border border-gray-700"
-                    on:click=|e| e.stop_propagation()
+                    on:click=|e: leptos::ev::MouseEvent| e.stop_propagation()
                 >
                     <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold">{title.get_value()}</h2>
+                        <h2 class="text-lg font-semibold">{move || title.get()}</h2>
                         <button
                             class="text-gray-400 hover:text-white text-xl leading-none"
                             on:click=move |_| on_close.run(())

@@ -23,7 +23,7 @@ struct SshKey {
 }
 
 #[derive(Serialize, Default)]
-struct CreateServerRequest {
+struct ServerPayload {
     name: String,
     host: String,
     port: Option<i64>,
@@ -47,7 +47,6 @@ struct Interface {
     name: String,
 }
 
-/// 认证方式固定选项
 fn auth_type_options() -> Vec<SelectOption> {
     vec![
         SelectOption::new("key",      "SSH 密钥（推荐）"),
@@ -64,23 +63,26 @@ pub fn ServersPage() -> impl IntoView {
         }
     });
 
-    let servers    = RwSignal::new(Vec::<Server>::new());
-    let keys       = RwSignal::new(Vec::<SshKey>::new());
-    let show_modal = RwSignal::new(false);
-    let testing_id = RwSignal::new(Option::<String>::None);
+    let servers     = RwSignal::new(Vec::<Server>::new());
+    let keys        = RwSignal::new(Vec::<SshKey>::new());
+    let show_modal  = RwSignal::new(false);
+    let testing_id  = RwSignal::new(Option::<String>::None);
     let test_result = RwSignal::new(Option::<TestResult>::None);
 
-    // 表单字段
-    let name      = RwSignal::new(String::new());
-    let host      = RwSignal::new(String::new());
-    let port      = RwSignal::new("22".to_string());
-    let username  = RwSignal::new("root".to_string());
-    let auth_type = RwSignal::new("key".to_string());
-    // 密钥选择用空串表示"未选择"
-    let ssh_key_id_str = RwSignal::new(String::new());
-    let password  = RwSignal::new(String::new());
-    let error     = RwSignal::new(Option::<String>::None);
+    // None = 新建模式；Some(id) = 编辑模式
+    let edit_id = RwSignal::new(Option::<String>::None);
 
+    // 表单字段
+    let name           = RwSignal::new(String::new());
+    let host           = RwSignal::new(String::new());
+    let port           = RwSignal::new("22".to_string());
+    let username       = RwSignal::new("root".to_string());
+    let auth_type      = RwSignal::new("key".to_string());
+    let ssh_key_id_str = RwSignal::new(String::new());
+    let password       = RwSignal::new(String::new());
+    let error          = RwSignal::new(Option::<String>::None);
+
+    // ── 加载 ──────────────────────────────────────────────────────────────
     let load_servers = move || {
         leptos::task::spawn_local(async move {
             if let Ok(list) = crate::api::get::<Vec<Server>>("/api/servers").await {
@@ -100,31 +102,66 @@ pub fn ServersPage() -> impl IntoView {
     load_servers();
     load_keys();
 
-    let on_create = move |ev: leptos::ev::SubmitEvent| {
+    // ── 重置表单 ──────────────────────────────────────────────────────────
+    let reset_form = move || {
+        edit_id.set(None);
+        name.set(String::new());
+        host.set(String::new());
+        port.set("22".to_string());
+        username.set("root".to_string());
+        auth_type.set("key".to_string());
+        ssh_key_id_str.set(String::new());
+        password.set(String::new());
+        error.set(None);
+    };
+
+    // ── 打开编辑弹窗，回填表单 ────────────────────────────────────────────
+    let open_edit = move |server: Server| {
+        edit_id.set(Some(server.id.clone()));
+        name.set(server.name.clone());
+        host.set(server.host.clone());
+        port.set(server.port.to_string());
+        username.set(server.username.clone());
+        auth_type.set(server.auth_type.clone());
+        ssh_key_id_str.set(server.ssh_key_id.clone().unwrap_or_default());
+        password.set(String::new()); // 密码不回填，留空表示不修改
+        error.set(None);
+        show_modal.set(true);
+    };
+
+    // ── 提交（新建 or 更新）────────────────────────────────────────────────
+    let on_submit = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
         error.set(None);
         let key_id = ssh_key_id_str.get();
-        let req = CreateServerRequest {
+        let payload = ServerPayload {
             name: name.get(),
             host: host.get(),
             port: port.get().parse().ok(),
             username: username.get(),
             auth_type: auth_type.get(),
             ssh_key_id: if key_id.is_empty() { None } else { Some(key_id) },
-            password: if auth_type.get() == "password" { Some(password.get()) } else { None },
+            password: if auth_type.get() == "password" {
+                let p = password.get();
+                if p.is_empty() { None } else { Some(p) }
+            } else {
+                None
+            },
         };
+
+        let id = edit_id.get();
         leptos::task::spawn_local(async move {
-            match crate::api::post::<_, Server>("/api/servers", &req).await {
+            let result = if let Some(ref eid) = id {
+                // 编辑：PUT
+                crate::api::put::<_, Server>(&format!("/api/servers/{}", eid), &payload).await
+            } else {
+                // 新建：POST
+                crate::api::post::<_, Server>("/api/servers", &payload).await
+            };
+            match result {
                 Ok(_) => {
                     show_modal.set(false);
-                    // 重置表单
-                    name.set(String::new());
-                    host.set(String::new());
-                    port.set("22".to_string());
-                    username.set("root".to_string());
-                    auth_type.set("key".to_string());
-                    ssh_key_id_str.set(String::new());
-                    password.set(String::new());
+                    reset_form();
                     load_servers();
                 }
                 Err(e) => error.set(Some(e)),
@@ -132,6 +169,7 @@ pub fn ServersPage() -> impl IntoView {
         });
     };
 
+    // ── 测试连接 ──────────────────────────────────────────────────────────
     let on_test = move |id: String| {
         testing_id.set(Some(id.clone()));
         test_result.set(None);
@@ -148,6 +186,7 @@ pub fn ServersPage() -> impl IntoView {
         });
     };
 
+    // ── 删除 ──────────────────────────────────────────────────────────────
     let on_delete = move |id: String| {
         leptos::task::spawn_local(async move {
             let path = format!("/api/servers/{}", id);
@@ -164,10 +203,7 @@ pub fn ServersPage() -> impl IntoView {
                     <h1 class="text-2xl font-bold">"服务器管理"</h1>
                     <button
                         class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-                        on:click=move |_| {
-                            error.set(None);
-                            show_modal.set(true);
-                        }
+                        on:click=move |_| { reset_form(); show_modal.set(true); }
                     >"+ 添加服务器"</button>
                 </div>
 
@@ -181,9 +217,9 @@ pub fn ServersPage() -> impl IntoView {
                     view! {
                         <div class=banner_class>
                             <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2 font-medium">
+                                <span class="font-medium">
                                     {if r.success { "✅ 连接成功" } else { "❌ 连接失败" }}
-                                </div>
+                                </span>
                                 <button class="text-gray-400 hover:text-white text-sm"
                                     on:click=move |_| test_result.set(None)>"✕"</button>
                             </div>
@@ -198,10 +234,11 @@ pub fn ServersPage() -> impl IntoView {
                 // 服务器列表
                 <div class="space-y-3">
                     {move || servers.get().into_iter().map(|server| {
-                        let id_dis    = server.id.clone();  // disabled 闭包
-                        let id_label  = server.id.clone();  // 按钮文字闭包
-                        let id_test   = server.id.clone();  // on_test
-                        let id_delete = server.id.clone();  // on_delete
+                        let id_dis    = server.id.clone();
+                        let id_label  = server.id.clone();
+                        let id_test   = server.id.clone();
+                        let id_delete = server.id.clone();
+                        let server_edit = server.clone();
                         let status_color = match server.status.as_str() {
                             "online"  => "text-green-400",
                             "offline" => "text-red-400",
@@ -217,13 +254,13 @@ pub fn ServersPage() -> impl IntoView {
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <div class="flex items-center gap-2 mb-0.5">
-                                            <span class="font-medium">{server.name}</span>
+                                            <span class="font-medium">{server.name.clone()}</span>
                                             <span class=format!("text-xs {}", status_color)>
                                                 {status_label}
                                             </span>
                                         </div>
                                         <p class="text-sm text-gray-400 font-mono">
-                                            {server.username}"@"{server.host}":"{server.port}
+                                            {server.username.clone()}"@"{server.host.clone()}":"{server.port}
                                         </p>
                                         <p class="text-xs text-gray-500 mt-0.5">
                                             "认证: "
@@ -239,7 +276,11 @@ pub fn ServersPage() -> impl IntoView {
                                             {move || if testing_id.get() == Some(id_label.clone()) { "测试中…" } else { "测试连接" }}
                                         </button>
                                         <button
-                                            class="text-red-400 hover:text-red-300 text-sm px-3 py-1.5"
+                                            class="text-blue-400 hover:text-blue-300 text-sm px-3 py-1.5 transition-colors"
+                                            on:click=move |_| open_edit(server_edit.clone())
+                                        >"编辑"</button>
+                                        <button
+                                            class="text-red-400 hover:text-red-300 text-sm px-3 py-1.5 transition-colors"
                                             on:click=move |_| on_delete(id_delete.clone())
                                         >"删除"</button>
                                     </div>
@@ -257,13 +298,14 @@ pub fn ServersPage() -> impl IntoView {
                 </div>
             </div>
 
-            // ── 添加服务器弹窗 ─────────────────────────────────────────
+            // ── 新建 / 编辑 服务器弹窗（复用同一表单）────────────────────
             <Modal
                 show=show_modal.read_only()
-                title="添加服务器"
-                on_close=Callback::new(move |_| show_modal.set(false))
+                title=Signal::derive(move || if edit_id.get().is_some() { "编辑服务器".to_string() } else { "添加服务器".to_string() })
+                on_close=Callback::new(move |_| { show_modal.set(false); reset_form(); })
             >
-                <form on:submit=on_create class="space-y-3">
+                <form on:submit=on_submit class="space-y-3">
+
                     // 名称 + 端口
                     <div class="grid grid-cols-2 gap-3">
                         <div>
@@ -324,7 +366,7 @@ pub fn ServersPage() -> impl IntoView {
                         />
                     </div>
 
-                    // 密钥选择 或 密码输入（根据认证方式动态切换）
+                    // 密钥 or 密码
                     {move || if auth_type.get() == "key" {
                         let key_options: Vec<SelectOption> = keys.get()
                             .into_iter()
@@ -342,12 +384,18 @@ pub fn ServersPage() -> impl IntoView {
                             </div>
                         }.into_any()
                     } else {
+                        let placeholder = if edit_id.get().is_some() {
+                            "留空则不修改密码"
+                        } else {
+                            "请输入密码"
+                        };
                         view! {
                             <div>
                                 <label class="block text-xs text-gray-400 mb-1">"密码"</label>
                                 <input
                                     class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                                     type="password"
+                                    placeholder=placeholder
                                     prop:value=password
                                     on:input=move |ev| password.set(event_target_value(&ev))
                                 />
@@ -360,14 +408,16 @@ pub fn ServersPage() -> impl IntoView {
                         <div class="bg-red-900/50 border border-red-700 text-red-300 px-3 py-2 rounded-lg text-sm">{e}</div>
                     })}
 
-                    // 操作按钮
+                    // 按钮
                     <div class="flex gap-3 pt-1">
                         <button type="submit"
                             class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
-                        >"添加"</button>
+                        >
+                            {move || if edit_id.get().is_some() { "保存修改" } else { "添加" }}
+                        </button>
                         <button type="button"
                             class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
-                            on:click=move |_| show_modal.set(false)
+                            on:click=move |_| { show_modal.set(false); reset_form(); }
                         >"取消"</button>
                     </div>
                 </form>
