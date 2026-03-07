@@ -1,10 +1,9 @@
 use leptos::prelude::*;
-use crate::store::{use_auth, use_set_auth, AuthState};
+use crate::store::{use_auth, AuthState};
 
 #[component]
 pub fn Layout(children: Children) -> impl IntoView {
     let auth = use_auth();
-    let set_auth = use_set_auth();
 
     view! {
         <div class="min-h-screen bg-gray-900 text-gray-100">
@@ -30,7 +29,7 @@ pub fn Layout(children: Children) -> impl IntoView {
                         class="text-red-400 hover:text-red-300 transition-colors"
                         on:click=move |_| {
                             AuthState::clear();
-                            set_auth.set(AuthState::default());
+                            auth.set(AuthState::default());
                             let window = web_sys::window().unwrap();
                             window.location().set_href("/login").ok();
                         }

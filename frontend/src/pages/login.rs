@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::store::{use_set_auth, AuthState};
+use crate::store::{use_auth, AuthState};
 
 #[derive(Serialize)]
 struct LoginRequest {
@@ -27,7 +27,7 @@ pub fn LoginPage() -> impl IntoView {
     let password = RwSignal::new(String::new());
     let error = RwSignal::new(Option::<String>::None);
     let loading = RwSignal::new(false);
-    let set_auth = use_set_auth();
+    let auth = use_auth();
 
     let on_submit = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
@@ -42,14 +42,14 @@ pub fn LoginPage() -> impl IntoView {
         leptos::task::spawn_local(async move {
             match crate::api::post::<_, LoginResponse>("/api/auth/login", &req).await {
                 Ok(resp) => {
-                    let auth = AuthState {
+                    let state = AuthState {
                         token: Some(resp.token),
                         user_id: Some(resp.user.id),
                         email: Some(resp.user.email),
                         role: Some(resp.user.role),
                     };
-                    auth.save();
-                    set_auth.set(auth);
+                    state.save();
+                    auth.set(state);
                     let window = web_sys::window().unwrap();
                     window.location().set_href("/").ok();
                 }

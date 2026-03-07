@@ -50,17 +50,15 @@ impl AuthState {
     }
 }
 
-pub fn provide_auth() -> (ReadSignal<AuthState>, WriteSignal<AuthState>) {
-    let (auth, set_auth) = signal(AuthState::load());
-    provide_context(auth);
-    provide_context(set_auth);
-    (auth, set_auth)
+// 全局静态信号，不依赖 reactive owner tree
+use std::sync::OnceLock;
+
+static AUTH: OnceLock<RwSignal<AuthState>> = OnceLock::new();
+
+pub fn init_auth() {
+    AUTH.get_or_init(|| RwSignal::new(AuthState::load()));
 }
 
-pub fn use_auth() -> ReadSignal<AuthState> {
-    expect_context::<ReadSignal<AuthState>>()
-}
-
-pub fn use_set_auth() -> WriteSignal<AuthState> {
-    expect_context::<WriteSignal<AuthState>>()
+pub fn use_auth() -> RwSignal<AuthState> {
+    *AUTH.get().expect("call init_auth() first")
 }
