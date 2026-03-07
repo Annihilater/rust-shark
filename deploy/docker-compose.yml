@@ -6,12 +6,12 @@ services:
     container_name: rust-shark
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:3000"
+      - "${PORT:-17823}:17823"
     volumes:
       - ./data:/app/data
     environment:
       - HOST=0.0.0.0
-      - PORT=3000
+      - PORT=17823
       - DATABASE_URL=sqlite:///app/data/rust-shark.db
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production-32bytes!!}
       - JWT_SECRET=${JWT_SECRET:-change-jwt-secret-in-production!!!}
@@ -19,7 +19,7 @@ services:
       - DATA_DIR=/app/data
       - RUST_LOG=${RUST_LOG:-info}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:17823/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3

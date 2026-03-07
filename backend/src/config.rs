@@ -16,10 +16,10 @@ impl Config {
         Ok(Self {
             host: std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
             port: std::env::var("PORT")
-                .unwrap_or_else(|_| "3000".to_string())
+                .unwrap_or_else(|_| "17823".to_string())
                 .parse()?,
             database_url: std::env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "sqlite://data/rust-shark.db".to_string()),
+                .unwrap_or_else(|_| "sqlite://data/rust-shark.db?mode=rwc".to_string()),
             secret_key: std::env::var("SECRET_KEY")
                 .unwrap_or_else(|_| "change-me-in-production-32bytes!!".to_string()),
             jwt_secret: std::env::var("JWT_SECRET")
