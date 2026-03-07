@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::components::{layout::Layout, modal::Modal};
+use crate::components::{layout::Layout, modal::Modal, select::{Select, SelectOption}};
 use crate::store::use_auth;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -29,14 +29,22 @@ struct GenerateKeyRequest {
 #[derive(Deserialize, Clone, Debug)]
 struct GenerateKeyResponse {
     key: SshKey,
-    private_key_pem: String,
 }
 
-/// Tab 模式：粘贴私钥 or 自动生成
 #[derive(Clone, PartialEq)]
 enum AddTab {
     Paste,
     Generate,
+}
+
+fn key_type_options() -> Vec<SelectOption> {
+    vec![
+        SelectOption::new("ed25519",    "Ed25519（推荐，最快最安全）"),
+        SelectOption::new("ecdsa-p256", "ECDSA P-256"),
+        SelectOption::new("ecdsa-p384", "ECDSA P-384"),
+        SelectOption::new("rsa-4096",   "RSA 4096 位"),
+        SelectOption::new("rsa-2048",   "RSA 2048 位"),
+    ]
 }
 
 #[component]
@@ -48,18 +56,14 @@ pub fn KeysPage() -> impl IntoView {
         }
     });
 
-    let keys = RwSignal::new(Vec::<SshKey>::new());
+    let keys      = RwSignal::new(Vec::<SshKey>::new());
     let show_modal = RwSignal::new(false);
-    let error = RwSignal::new(Option::<String>::None);
-    let success = RwSignal::new(Option::<String>::None);
+    let error     = RwSignal::new(Option::<String>::None);
+    let success   = RwSignal::new(Option::<String>::None);
+    let view_key  = RwSignal::new(Option::<SshKey>::None);
+    let active_tab = RwSignal::new(AddTab::Paste);
 
-    // 查看公钥弹窗
-    let view_key = RwSignal::new(Option::<SshKey>::None);
-
-    // 生成密钥后展示私钥弹窗
-    let generated_pem = RwSignal::new(Option::<String>::None);
-
-    // 加载密钥列表
+    // ── 加载列表 ──────────────────────────────────────────────────────────
     let load_keys = move || {
         leptos::task::spawn_local(async move {
             if let Ok(list) = crate::api::get::<Vec<SshKey>>("/api/keys").await {
@@ -69,17 +73,14 @@ pub fn KeysPage() -> impl IntoView {
     };
     load_keys();
 
-    // ── 粘贴 Tab 状态 ──
-    let key_name = RwSignal::new(String::new());
+    // ── 粘贴 Tab ──────────────────────────────────────────────────────────
+    let key_name   = RwSignal::new(String::new());
     let private_key = RwSignal::new(String::new());
 
     let on_create = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
         error.set(None);
-        let req = CreateKeyRequest {
-            name: key_name.get(),
-            private_key: private_key.get(),
-        };
+        let req = CreateKeyRequest { name: key_name.get(), private_key: private_key.get() };
         leptos::task::spawn_local(async move {
             match crate::api::post::<_, SshKey>("/api/keys", &req).await {
                 Ok(_) => {
@@ -94,9 +95,9 @@ pub fn KeysPage() -> impl IntoView {
         });
     };
 
-    // ── 生成 Tab 状态 ──
-    let gen_name = RwSignal::new(String::new());
-    let gen_type = RwSignal::new("ed25519".to_string());
+    // ── 生成 Tab ──────────────────────────────────────────────────────────
+    let gen_name    = RwSignal::new(String::new());
+    let gen_type    = RwSignal::new("ed25519".to_string());
     let gen_comment = RwSignal::new(String::new());
 
     let on_generate = move |ev: leptos::ev::SubmitEvent| {
@@ -105,10 +106,7 @@ pub fn KeysPage() -> impl IntoView {
         let req = GenerateKeyRequest {
             name: gen_name.get(),
             key_type: gen_type.get(),
-            comment: {
-                let c = gen_comment.get();
-                if c.is_empty() { None } else { Some(c) }
-            },
+            comment: { let c = gen_comment.get(); if c.is_empty() { None } else { Some(c) } },
         };
         leptos::task::spawn_local(async move {
             match crate::api::post::<_, GenerateKeyResponse>("/api/keys/generate", &req).await {
@@ -116,8 +114,7 @@ pub fn KeysPage() -> impl IntoView {
                     show_modal.set(false);
                     gen_name.set(String::new());
                     gen_comment.set(String::new());
-                    success.set(Some(format!("密钥 \"{}\" 生成成功，请保存私钥", resp.key.name)));
-                    generated_pem.set(Some(resp.private_key_pem));
+                    success.set(Some(format!("密钥 \"{}\" 生成成功，私钥已加密保存", resp.key.name)));
                     load_keys();
                 }
                 Err(e) => error.set(Some(e)),
@@ -125,7 +122,7 @@ pub fn KeysPage() -> impl IntoView {
         });
     };
 
-    // ── 删除 ──
+    // ── 删除 ─────────────────────────────────────────────────────────────
     let on_delete = move |id: String| {
         leptos::task::spawn_local(async move {
             let path = format!("/api/keys/{}", id);
@@ -135,9 +132,6 @@ pub fn KeysPage() -> impl IntoView {
             }
         });
     };
-
-    // ── Tab 切换 ──
-    let active_tab = RwSignal::new(AddTab::Paste);
 
     view! {
         <Layout>
@@ -154,17 +148,20 @@ pub fn KeysPage() -> impl IntoView {
                     >"+ 添加密钥"</button>
                 </div>
 
+                // 成功消息
                 {move || success.get().map(|s| view! {
                     <div class="bg-green-900/50 border border-green-700 text-green-300 px-4 py-2 rounded-lg text-sm mb-4 flex items-center justify-between">
                         <span>{s}</span>
-                        <button class="text-green-400 hover:text-green-200 ml-4" on:click=move |_| success.set(None)>"✕"</button>
+                        <button class="text-green-400 hover:text-green-200 ml-4"
+                            on:click=move |_| success.set(None)>"✕"</button>
                     </div>
                 })}
 
+                // 密钥列表
                 <div class="space-y-3">
                     {move || keys.get().into_iter().map(|key| {
-                        let id = key.id.clone();
-                        let on_del = on_delete.clone();
+                        let id           = key.id.clone();
+                        let on_del       = on_delete.clone();
                         let key_for_view = key.clone();
                         view! {
                             <div class="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-start justify-between gap-4">
@@ -172,7 +169,9 @@ pub fn KeysPage() -> impl IntoView {
                                     <div class="flex items-center gap-2 mb-1">
                                         <span class="text-yellow-400">"🔑"</span>
                                         <span class="font-medium">{key.name.clone()}</span>
-                                        <span class="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full font-mono">{key.key_type.clone()}</span>
+                                        <span class="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full font-mono">
+                                            {key.key_type.clone()}
+                                        </span>
                                     </div>
                                     <p class="text-xs text-gray-500 font-mono">"指纹: "{key.fingerprint.clone()}</p>
                                     <p class="text-xs text-gray-600 mt-0.5">"添加时间: "{key.created_at.clone()}</p>
@@ -200,7 +199,7 @@ pub fn KeysPage() -> impl IntoView {
                 </div>
             </div>
 
-            // ── 添加/生成密钥弹窗 ──
+            // ── 添加/生成弹窗 ─────────────────────────────────────────────
             <Modal
                 show=show_modal.read_only()
                 title="添加 SSH 密钥"
@@ -238,7 +237,7 @@ pub fn KeysPage() -> impl IntoView {
                         <div>
                             <label class="block text-sm text-gray-400 mb-1">"密钥名称"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                                 placeholder="生产服务器密钥"
                                 prop:value=key_name
                                 on:input=move |ev| key_name.set(event_target_value(&ev))
@@ -246,7 +245,7 @@ pub fn KeysPage() -> impl IntoView {
                             />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-400 mb-1">"私钥内容 (OpenSSH PEM 格式)"</label>
+                            <label class="block text-sm text-gray-400 mb-1">"私钥内容（OpenSSH PEM 格式）"</label>
                             <textarea
                                 class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500 h-36 resize-none"
                                 placeholder="-----BEGIN OPENSSH PRIVATE KEY-----\n..."
@@ -259,9 +258,13 @@ pub fn KeysPage() -> impl IntoView {
                             <div class="bg-red-900/50 border border-red-700 text-red-300 px-3 py-2 rounded-lg text-sm">{e}</div>
                         })}
                         <div class="flex gap-3 pt-1">
-                            <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors">"添加"</button>
-                            <button type="button" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
-                                on:click=move |_| show_modal.set(false)>"取消"</button>
+                            <button type="submit"
+                                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
+                            >"添加"</button>
+                            <button type="button"
+                                class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                                on:click=move |_| show_modal.set(false)
+                            >"取消"</button>
                         </div>
                     </form>
                 })}
@@ -272,7 +275,7 @@ pub fn KeysPage() -> impl IntoView {
                         <div>
                             <label class="block text-sm text-gray-400 mb-1">"密钥名称"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                                 placeholder="我的新密钥"
                                 prop:value=gen_name
                                 on:input=move |ev| gen_name.set(event_target_value(&ev))
@@ -281,43 +284,42 @@ pub fn KeysPage() -> impl IntoView {
                         </div>
                         <div>
                             <label class="block text-sm text-gray-400 mb-1">"密钥类型"</label>
-                            <select
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                                prop:value=gen_type
-                                on:change=move |ev| gen_type.set(event_target_value(&ev))
-                            >
-                                <option value="ed25519">"Ed25519 (推荐，最快最安全)"</option>
-                                <option value="ecdsa-p256">"ECDSA P-256"</option>
-                                <option value="ecdsa-p384">"ECDSA P-384"</option>
-                                <option value="rsa-4096">"RSA 4096 位"</option>
-                                <option value="rsa-2048">"RSA 2048 位"</option>
-                            </select>
+                            <Select
+                                options=key_type_options()
+                                value=gen_type.read_only()
+                                on_change=Callback::new(move |v| gen_type.set(v))
+                            />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-400 mb-1">"注释 (可选)"</label>
+                            <label class="block text-sm text-gray-400 mb-1">"注释（可选）"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                                 placeholder="user@hostname"
                                 prop:value=gen_comment
                                 on:input=move |ev| gen_comment.set(event_target_value(&ev))
                             />
                         </div>
-                        <div class="bg-yellow-900/30 border border-yellow-700/50 text-yellow-300/80 px-3 py-2 rounded-lg text-xs">
-                            "⚠ 生成后系统只显示一次私钥，请立即保存到本地"
+                        <div class="bg-blue-900/30 border border-blue-700/50 text-blue-300/80 px-3 py-2 rounded-lg text-xs flex items-start gap-2">
+                            <span class="mt-0.5 shrink-0">"🔒"</span>
+                            <span>"私钥将使用 AES-256-GCM 加密保存在数据库中，SSH 连接时从内存解密使用，不会明文传输"</span>
                         </div>
                         {move || error.get().map(|e| view! {
                             <div class="bg-red-900/50 border border-red-700 text-red-300 px-3 py-2 rounded-lg text-sm">{e}</div>
                         })}
                         <div class="flex gap-3 pt-1">
-                            <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors">"生成密钥"</button>
-                            <button type="button" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
-                                on:click=move |_| show_modal.set(false)>"取消"</button>
+                            <button type="submit"
+                                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
+                            >"生成并保存"</button>
+                            <button type="button"
+                                class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                                on:click=move |_| show_modal.set(false)
+                            >"取消"</button>
                         </div>
                     </form>
                 })}
             </Modal>
 
-            // ── 查看公钥弹窗 ──
+            // ── 查看密钥详情弹窗 ─────────────────────────────────────────
             <Modal
                 show=Signal::derive(move || view_key.get().is_some())
                 title="密钥详情"
@@ -325,17 +327,19 @@ pub fn KeysPage() -> impl IntoView {
             >
                 {move || view_key.get().map(|k| view! {
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">"名称"</label>
-                            <p class="text-white font-medium">{k.name.clone()}</p>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">"类型"</label>
-                            <span class="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded font-mono">{k.key_type.clone()}</span>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">"名称"</label>
+                                <p class="text-white font-medium text-sm">{k.name.clone()}</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">"类型"</label>
+                                <span class="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded font-mono">{k.key_type.clone()}</span>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-xs text-gray-500 mb-1">"SHA256 指纹"</label>
-                            <p class="text-xs font-mono text-green-400 break-all bg-gray-900 rounded px-2 py-1">{k.fingerprint.clone()}</p>
+                            <p class="text-xs font-mono text-green-400 break-all bg-gray-900 rounded px-2 py-1.5">{k.fingerprint.clone()}</p>
                         </div>
                         <div>
                             <label class="block text-xs text-gray-500 mb-1">"公钥"</label>
@@ -349,54 +353,15 @@ pub fn KeysPage() -> impl IntoView {
                             <label class="block text-xs text-gray-500 mb-1">"添加时间"</label>
                             <p class="text-xs text-gray-400">{k.created_at.clone()}</p>
                         </div>
-                        <div class="pt-1">
-                            <button
-                                class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
-                                on:click=move |_| view_key.set(None)
-                            >"关闭"</button>
+                        <div class="bg-gray-900/60 border border-gray-700 text-gray-400 px-3 py-2 rounded-lg text-xs flex items-center gap-2">
+                            <span>"🔒"</span>
+                            <span>"私钥已加密存储于数据库，SSH 连接时在内存中解密使用"</span>
                         </div>
+                        <button
+                            class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                            on:click=move |_| view_key.set(None)
+                        >"关闭"</button>
                     </div>
-                })}
-            </Modal>
-
-            // ── 生成成功后展示私钥弹窗 ──
-            <Modal
-                show=Signal::derive(move || generated_pem.get().is_some())
-                title="保存私钥"
-                on_close=Callback::new(move |_| generated_pem.set(None))
-            >
-                {move || generated_pem.get().map(|pem| {
-                    let pem_copy = pem.clone();
-                    view! {
-                        <div class="space-y-4">
-                            <div class="bg-red-900/30 border border-red-700/50 text-red-300 px-3 py-2 rounded-lg text-sm">
-                                "⚠ 私钥只显示一次，关闭后将无法再次查看，请立即复制保存！"
-                            </div>
-                            <div>
-                                <label class="block text-xs text-gray-500 mb-1">"私钥 (OpenSSH PEM)"</label>
-                                <textarea
-                                    class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs font-mono text-green-400 h-48 resize-none focus:outline-none"
-                                    readonly
-                                    prop:value=pem.clone()
-                                />
-                            </div>
-                            <div class="flex gap-3">
-                                <button
-                                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
-                                    on:click=move |_| {
-                                        let win = web_sys::window().unwrap();
-                                        let nav = win.navigator();
-                                        let clipboard = nav.clipboard();
-                                        let _ = clipboard.write_text(&pem_copy);
-                                    }
-                                >"复制私钥"</button>
-                                <button
-                                    class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
-                                    on:click=move |_| generated_pem.set(None)
-                                >"我已保存，关闭"</button>
-                            </div>
-                        </div>
-                    }
                 })}
             </Modal>
         </Layout>
