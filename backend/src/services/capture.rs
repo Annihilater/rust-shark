@@ -4,7 +4,7 @@ use crate::models::server::Server;
 use crate::services::ssh;
 use crate::state::CaptureRegistry;
 use anyhow::{Context, Result};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::info;
 
 /// 确保目标服务器上有 tcpdump，返回可用路径
@@ -31,6 +31,68 @@ async fn update_log(pool: &DbPool, task_id: &str, msg: &str) {
         .ok();
 }
 
+/// 通过 scp 从远端下载文件到本地
+/// 使用系统 scp 命令，支持任意大小文件，不受内存限制
+async fn download_via_scp(
+    host: &str,
+    port: u16,
+    username: &str,
+    auth_type: &str,
+    private_key_pem: Option<&str>,
+    key_file_path: Option<&Path>,
+    remote_path: &str,
+    local_path: &Path,
+) -> Result<()> {
+    // 写临时密钥文件（如果没有已有的）
+    let _tmp_key;
+    let key_path_for_scp: Option<&Path> = if auth_type == "key" {
+        if let Some(p) = key_file_path {
+            Some(p)
+        } else if let Some(pem) = private_key_pem {
+            let mut tmp = tempfile::NamedTempFile::new()?;
+            use std::io::Write;
+            tmp.write_all(pem.as_bytes())?;
+            tmp.flush()?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o600))?;
+            }
+            _tmp_key = tmp;
+            Some(_tmp_key.path())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let mut cmd = tokio::process::Command::new("scp");
+    cmd.arg("-o").arg("StrictHostKeyChecking=no")
+       .arg("-o").arg("BatchMode=yes")
+       .arg("-o").arg("ConnectTimeout=30")
+       .arg("-P").arg(port.to_string());
+
+    if let Some(key_path) = key_path_for_scp {
+        cmd.arg("-i").arg(key_path);
+    }
+
+    let src = format!("{}@{}:{}", username, host, remote_path);
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(120),
+        cmd.arg(&src).arg(local_path).output(),
+    )
+    .await
+    .context("scp 超时（120s）")?
+    .context("scp 命令执行失败")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("scp 失败: {}", stderr.trim());
+    }
+    Ok(())
+}
+
 /// 执行抓包任务
 pub async fn run_capture(
     task: &CaptureTask,
@@ -41,7 +103,7 @@ pub async fn run_capture(
     pool: DbPool,
     capture_pids: CaptureRegistry,
 ) -> Result<PathBuf> {
-    let (session, _key_file) = ssh::connect(
+    let (session, key_file) = ssh::connect(
         &server.host,
         server.port as u16,
         &server.username,
@@ -206,34 +268,63 @@ pub async fn run_capture(
 
     update_log(&pool, &task.id, "抓包完成，正在下载数据...").await;
 
-    // 通过 base64 下载 pcap 文件
-    let (file_data_b64, code) = ssh::exec(&session, &format!("base64 {} 2>/dev/null", remote_file)).await?;
-    if code != 0 || file_data_b64.trim().is_empty() {
-        // 没有文件（比如刚启动就被 cancel）
-        sqlx::query(
-            "UPDATE capture_tasks SET status = 'cancelled', finished_at = datetime('now') WHERE id = ? AND status = 'running'",
-        )
-        .bind(&task.id)
-        .execute(&pool)
-        .await?;
-        ssh::exec(&session, &format!("rm -f {}", remote_file)).await.ok();
-        session.close().await.ok();
-        return Err(anyhow::anyhow!("无抓包数据"));
-    }
-
-    use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-    let file_data = BASE64
-        .decode(file_data_b64.trim())
-        .context("base64解码抓包文件失败")?;
-
     // 保存到本地
     let local_dir = PathBuf::from(data_dir)
         .join("captures")
         .join(&task.user_id);
     tokio::fs::create_dir_all(&local_dir).await?;
     let local_path = local_dir.join(format!("{}.pcap", task.id));
-    tokio::fs::write(&local_path, &file_data).await?;
-    let file_size = file_data.len() as i64;
+
+    // 通过 scp 下载 pcap 文件（比 base64 更可靠，支持大文件）
+    let scp_result = download_via_scp(
+        &server.host,
+        server.port as u16,
+        &server.username,
+        &server.auth_type,
+        private_key_pem,
+        key_file.as_ref().map(|f| f.path()),
+        &remote_file,
+        &local_path,
+    )
+    .await;
+
+    if let Err(e) = scp_result {
+        info!("scp 失败，回退到 base64: {}", e);
+        // fallback: base64
+        let (file_data_b64, code) = ssh::exec(&session, &format!("base64 {} 2>/dev/null", remote_file)).await?;
+        if code != 0 || file_data_b64.trim().is_empty() {
+            sqlx::query(
+                "UPDATE capture_tasks SET status = 'cancelled', finished_at = datetime('now') WHERE id = ? AND status = 'running'",
+            )
+            .bind(&task.id)
+            .execute(&pool)
+            .await?;
+            ssh::exec(&session, &format!("rm -f {}", remote_file)).await.ok();
+            session.close().await.ok();
+            return Err(anyhow::anyhow!("无抓包数据"));
+        }
+        use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+        let file_data = BASE64
+            .decode(file_data_b64.trim())
+            .context("base64解码抓包文件失败")?;
+        tokio::fs::write(&local_path, &file_data).await?;
+    }
+
+    // 检查文件是否存在且非空
+    let file_size = match tokio::fs::metadata(&local_path).await {
+        Ok(m) if m.len() > 0 => m.len() as i64,
+        _ => {
+            sqlx::query(
+                "UPDATE capture_tasks SET status = 'cancelled', finished_at = datetime('now') WHERE id = ? AND status = 'running'",
+            )
+            .bind(&task.id)
+            .execute(&pool)
+            .await?;
+            ssh::exec(&session, &format!("rm -f {}", remote_file)).await.ok();
+            session.close().await.ok();
+            return Err(anyhow::anyhow!("无抓包数据"));
+        }
+    };
 
     // 清理远端临时文件
     ssh::exec(&session, &format!("rm -f {}", remote_file))
@@ -241,6 +332,8 @@ pub async fn run_capture(
         .ok();
 
     // 更新任务状态
+    let done_log = format!("抓包完成，共 {} 字节", file_size);
+    update_log(&pool, &task.id, &done_log).await;
     sqlx::query(
         "UPDATE capture_tasks SET status = 'done', file_path = ?, file_size = ?, finished_at = datetime('now') WHERE id = ?",
     )
