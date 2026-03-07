@@ -14,8 +14,10 @@ use state::AppState;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 加载 .env 文件
-    dotenvy::dotenv().ok();
+    // 向上查找 .env 文件（兼容从 backend/ 或项目根目录运行）
+    if dotenvy::dotenv().is_err() {
+        dotenvy::from_path("../.env").ok();
+    }
 
     // 初始化日志
     tracing_subscriber::registry()

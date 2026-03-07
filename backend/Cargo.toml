@@ -2,6 +2,7 @@
 name = "backend"
 version.workspace = true
 edition.workspace = true
+default-run = "rust-shark"
 
 [[bin]]
 name = "rust-shark"
@@ -53,8 +54,8 @@ aes-gcm = "0.10"
 base64 = "0.22"
 rand = "0.8"
 
-# SSH 密钥解析
-ssh-key = { version = "0.6", features = ["alloc", "std"] }
+# SSH 密钥解析与生成
+ssh-key = { version = "0.6", features = ["alloc", "std", "ed25519", "rsa", "p256", "p384", "rand_core", "getrandom"] }
 # SSH（使用 openssh crate，基于系统 OpenSSH）
 openssh = { version = "0.11", features = ["process-mux"] }
 tempfile = "3"
