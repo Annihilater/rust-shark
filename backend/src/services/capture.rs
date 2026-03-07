@@ -268,10 +268,15 @@ pub async fn run_capture(
 
     update_log(&pool, &task.id, "抓包完成，正在下载数据...").await;
 
-    // 保存到本地
-    let local_dir = PathBuf::from(data_dir)
-        .join("captures")
-        .join(&task.user_id);
+    // 保存到本地（使用绝对路径，确保 sharkd 能找到文件）
+    let base_dir = if std::path::Path::new(data_dir).is_absolute() {
+        PathBuf::from(data_dir)
+    } else {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(data_dir)
+    };
+    let local_dir = base_dir.join("captures").join(&task.user_id);
     tokio::fs::create_dir_all(&local_dir).await?;
     let local_path = local_dir.join(format!("{}.pcap", task.id));
 
