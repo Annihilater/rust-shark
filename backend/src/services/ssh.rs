@@ -39,11 +39,11 @@ pub async fn connect(
         key_file = Some(tmp);
     }
 
-    let dest = format!("{}@{}:{}", username, host, port);
+    let dest = format!("{}@{}", username, host);
     let session = builder
         .connect(&dest)
         .await
-        .context(format!("SSH连接 {} 失败", dest))?;
+        .context(format!("SSH连接 {}:{} 失败", host, port))?;
 
     Ok((session, key_file))
 }
