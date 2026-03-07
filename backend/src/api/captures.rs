@@ -19,6 +19,7 @@ pub fn router() -> Router<AppState> {
         .route("/{id}", get(get_capture).delete(delete_capture))
         .route("/{id}/stop", post(stop_capture))
         .route("/{id}/download", get(download_capture))
+        .route("/{id}/log", get(get_capture_log))
         .route("/{id}/packets", get(get_packets))
         .route("/{id}/packets/{no}", get(get_packet_detail))
 }
@@ -88,7 +89,7 @@ async fn create_capture(
     );
 
     sqlx::query(
-        "INSERT INTO capture_tasks (id, user_id, server_id, interface, filter, duration, packet_limit, status, scheduled_at, repeat_type, repeat_until, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO capture_tasks (id, user_id, server_id, interface, filter, duration, packet_limit, status, scheduled_at, repeat_type, repeat_until, created_at, log_msg) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&task.id)
     .bind(&task.user_id)
@@ -102,6 +103,7 @@ async fn create_capture(
     .bind(&task.repeat_type)
     .bind(&task.repeat_until)
     .bind(&task.created_at)
+    .bind(&task.log_msg)
     .execute(&state.pool)
     .await
     .map_err(internal_error)?;
@@ -149,6 +151,24 @@ async fn stop_capture(
     .map_err(internal_error)?;
 
     Ok(Json(serde_json::json!({"success": true})))
+}
+
+async fn get_capture_log(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<String>,
+) -> ApiResult<serde_json::Value> {
+    let task = sqlx::query_as::<_, CaptureTask>(
+        "SELECT * FROM capture_tasks WHERE id = ? AND user_id = ?",
+    )
+    .bind(&id)
+    .bind(&auth.user_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(internal_error)?
+    .ok_or_else(|| not_found("任务不存在"))?;
+
+    Ok(Json(serde_json::json!({"log": task.log_msg.unwrap_or_default()})))
 }
 
 async fn delete_capture(

@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use crate::components::{layout::Layout, modal::Modal, select::{Select, SelectOption}};
 use crate::store::use_auth;
 
@@ -15,6 +16,7 @@ struct CaptureTask {
     file_size: Option<i64>,
     created_at: String,
     finished_at: Option<String>,
+    log_msg: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -41,6 +43,11 @@ struct CreateCaptureRequest {
     repeat_until: Option<String>,
 }
 
+#[derive(Deserialize, Clone, Debug)]
+struct CaptureLogResponse {
+    log: String,
+}
+
 #[component]
 pub fn CapturesPage() -> impl IntoView {
     let auth = use_auth();
@@ -59,6 +66,10 @@ pub fn CapturesPage() -> impl IntoView {
     let loading_ifaces = RwSignal::new(false);
     let loading_ports  = RwSignal::new(false);
     let stopping_id    = RwSignal::new(Option::<String>::None);
+
+    // 日志展开状态
+    let expanded_log_id = RwSignal::new(Option::<String>::None);
+    let task_logs       = RwSignal::new(HashMap::<String, String>::new());
 
     // 表单字段（带默认值）
     let server_id     = RwSignal::new(String::new());
@@ -98,6 +109,30 @@ pub fn CapturesPage() -> impl IntoView {
                 gloo_timers::future::TimeoutFuture::new(3_000).await;
                 load_tasks();
             });
+        }
+    });
+
+    // 轮询日志：expanded_log_id 设置时，每 2 秒拉一次日志
+    Effect::new(move |_| {
+        let maybe_id = expanded_log_id.get();
+        if let Some(id) = maybe_id {
+            // 检查任务是否仍在运行
+            let is_running = tasks.get().iter().any(|t| t.id == id && t.status == "running");
+            if is_running {
+                let id2 = id.clone();
+                leptos::task::spawn_local(async move {
+                    gloo_timers::future::TimeoutFuture::new(2_000).await;
+                    let path = format!("/api/captures/{}/log", id2);
+                    if let Ok(resp) = crate::api::get::<CaptureLogResponse>(&path).await {
+                        task_logs.update(|m| { m.insert(id2.clone(), resp.log); });
+                    }
+                    // 触发重新求值（通过读取 expanded_log_id 的写入）
+                    if expanded_log_id.get_untracked() == Some(id2) {
+                        // force re-trigger by doing a no-op write if still expanded
+                        expanded_log_id.set(expanded_log_id.get_untracked());
+                    }
+                });
+            }
         }
     });
 
@@ -242,6 +277,8 @@ pub fn CapturesPage() -> impl IntoView {
                         let id_dl   = task.id.clone();
                         let id_ana  = task.id.clone();
                         let id_del  = task.id.clone();
+                        let id_log  = task.id.clone();
+                        let id_log2 = task.id.clone();
                         let is_running  = task.status == "running";
                         let is_done     = task.status == "done";
                         let status_class = match task.status.as_str() {
@@ -258,10 +295,18 @@ pub fn CapturesPage() -> impl IntoView {
                             "cancelled" => "⊘ 已取消",
                             _           => "○ 等待",
                         };
+                        // 初始化日志（从 log_msg 字段或已缓存的日志）
+                        {
+                            let init_log = task.log_msg.clone().unwrap_or_default();
+                            let tid = task.id.clone();
+                            if !init_log.is_empty() {
+                                task_logs.update(|m| { m.entry(tid).or_insert(init_log); });
+                            }
+                        }
                         view! {
                             <div class="bg-gray-800 border border-gray-700 rounded-xl p-4">
                                 <div class="flex items-start justify-between">
-                                    <div>
+                                    <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-3 flex-wrap">
                                             <span class=format!("text-sm font-medium {}", status_class)>{status_label}</span>
                                             <span class="font-mono text-sm text-gray-300">{task.interface.clone()}</span>
@@ -282,20 +327,61 @@ pub fn CapturesPage() -> impl IntoView {
                                         {task.file_size.map(|s| view! {
                                             <p class="text-xs text-gray-400 mt-0.5">"大小: "{format_size(s)}</p>
                                         })}
+                                        // 日志展开面板
+                                        {move || {
+                                            let log_id = id_log2.clone();
+                                            if expanded_log_id.get() == Some(log_id.clone()) {
+                                                let log_content = task_logs.get()
+                                                    .get(&log_id)
+                                                    .cloned()
+                                                    .unwrap_or_else(|| "加载中...".to_string());
+                                                view! {
+                                                    <pre class="mt-2 bg-gray-900 border border-gray-700 rounded p-2 text-xs font-mono text-green-400 max-h-32 overflow-auto whitespace-pre-wrap">
+                                                        {log_content}
+                                                    </pre>
+                                                }.into_any()
+                                            } else {
+                                                view! { <div/> }.into_any()
+                                            }
+                                        }}
                                     </div>
-                                    <div class="flex items-center gap-2 shrink-0">
-                                        // 运行中 → 停止按钮
+                                    <div class="flex items-center gap-2 shrink-0 ml-3">
+                                        // 运行中 → 停止按钮 + 查看日志按钮
                                         {if is_running {
                                             let id_s  = id_stop.clone();
                                             let id_s2 = id_stop.clone();
+                                            let id_lg = id_log.clone();
                                             view! {
-                                                <button
-                                                    class="bg-yellow-600 hover:bg-yellow-500 text-white text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                                                    disabled=move || stopping_id.get() == Some(id_s.clone())
-                                                    on:click=move |_| on_stop(id_s2.clone())
-                                                >
-                                                    {move || if stopping_id.get() == Some(id_stop.clone()) { "停止中…" } else { "⏹ 停止" }}
-                                                </button>
+                                                <div class="flex gap-2">
+                                                    <button
+                                                        class="bg-gray-700 hover:bg-gray-600 text-white text-sm px-3 py-1.5 rounded-lg transition-colors"
+                                                        on:click=move |_| {
+                                                            let tid = id_lg.clone();
+                                                            if expanded_log_id.get_untracked() == Some(tid.clone()) {
+                                                                expanded_log_id.set(None);
+                                                            } else {
+                                                                // 立即拉取一次日志
+                                                                let tid2 = tid.clone();
+                                                                leptos::task::spawn_local(async move {
+                                                                    let path = format!("/api/captures/{}/log", tid2);
+                                                                    if let Ok(resp) = crate::api::get::<CaptureLogResponse>(&path).await {
+                                                                        task_logs.update(|m| { m.insert(tid2.clone(), resp.log); });
+                                                                    }
+                                                                });
+                                                                expanded_log_id.set(Some(tid));
+                                                            }
+                                                        }
+                                                    >
+                                                        {move || if expanded_log_id.get() == Some(id_log.clone()) { "隐藏日志" } else { "查看日志" }}
+                                                    </button>
+                                                    <button
+                                                        class="bg-yellow-600 hover:bg-yellow-500 text-white text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                                        disabled=move || stopping_id.get() == Some(id_s.clone())
+                                                        on:click=move |_| on_stop(id_s2.clone())
+                                                    >
+                                                        {move || if stopping_id.get() == Some(id_stop.clone()) { "停止中…" } else { "⏹ 停止" }}
+                                                    </button>
+                                                </div>
                                             }.into_any()
                                         } else if is_done {
                                             view! {
@@ -305,7 +391,7 @@ pub fn CapturesPage() -> impl IntoView {
                                                         class="bg-gray-700 hover:bg-gray-600 text-sm px-3 py-1.5 rounded-lg transition-colors"
                                                     >"下载"</a>
                                                     <a
-                                                        href=format!("/captures/{}/analyze", id_ana)
+                                                        href=format!("/captures/{}", id_ana)
                                                         class="bg-blue-700 hover:bg-blue-600 text-sm px-3 py-1.5 rounded-lg transition-colors"
                                                     >"分析"</a>
                                                 </div>

@@ -19,6 +19,7 @@ pub struct CaptureTask {
     pub repeat_until: Option<String>,
     pub created_at: String,
     pub finished_at: Option<String>,
+    pub log_msg: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +71,7 @@ impl CaptureTask {
             repeat_until,
             created_at: chrono::Utc::now().naive_utc().to_string(),
             finished_at: None,
+            log_msg: None,
         }
     }
 }
