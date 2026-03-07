@@ -72,6 +72,10 @@ pub fn ServersPage() -> impl IntoView {
     // None = 新建模式；Some(id) = 编辑模式
     let edit_id = RwSignal::new(Option::<String>::None);
 
+    // 弹窗内测试结果（独立于列表页横幅）
+    let modal_test_result = RwSignal::new(Option::<TestResult>::None);
+    let modal_testing     = RwSignal::new(false);
+
     // 表单字段
     let name           = RwSignal::new(String::new());
     let host           = RwSignal::new(String::new());
@@ -113,6 +117,7 @@ pub fn ServersPage() -> impl IntoView {
         ssh_key_id_str.set(String::new());
         password.set(String::new());
         error.set(None);
+        modal_test_result.set(None);
     };
 
     // ── 打开编辑弹窗，回填表单 ────────────────────────────────────────────
@@ -169,7 +174,67 @@ pub fn ServersPage() -> impl IntoView {
         });
     };
 
-    // ── 测试连接 ──────────────────────────────────────────────────────────
+    // ── 弹窗内：构建当前表单的 payload ───────────────────────────────────
+    let build_payload = move || {
+        let key_id = ssh_key_id_str.get();
+        ServerPayload {
+            name: name.get(),
+            host: host.get(),
+            port: port.get().parse().ok(),
+            username: username.get(),
+            auth_type: auth_type.get(),
+            ssh_key_id: if key_id.is_empty() { None } else { Some(key_id) },
+            password: if auth_type.get() == "password" {
+                let p = password.get();
+                if p.is_empty() { None } else { Some(p) }
+            } else {
+                None
+            },
+        }
+    };
+
+    // ── 弹窗内：测试连接 ────────────────────────────────────────────────
+    // 编辑模式：直接用 edit_id 测试
+    // 新建模式：先保存拿到 id，再测试（保持弹窗打开）
+    let on_modal_test = move |_: leptos::ev::MouseEvent| {
+        error.set(None);
+        modal_test_result.set(None);
+        modal_testing.set(true);
+
+        if let Some(eid) = edit_id.get() {
+            // 编辑模式：直接测试
+            leptos::task::spawn_local(async move {
+                let path = format!("/api/servers/{}/test", eid);
+                match crate::api::post::<_, TestResult>(&path, &serde_json::json!({})).await {
+                    Ok(r) => { modal_test_result.set(Some(r)); load_servers(); }
+                    Err(e) => { error.set(Some(e)); }
+                }
+                modal_testing.set(false);
+            });
+        } else {
+            // 新建模式：先保存，拿到 id，再测试
+            let payload = build_payload();
+            leptos::task::spawn_local(async move {
+                match crate::api::post::<_, Server>("/api/servers", &payload).await {
+                    Ok(saved) => {
+                        let new_id = saved.id.clone();
+                        edit_id.set(Some(new_id.clone())); // 切换到编辑模式，后续可保存修改
+                        load_servers();
+                        // 保存成功后立即测试
+                        let path = format!("/api/servers/{}/test", new_id);
+                        match crate::api::post::<_, TestResult>(&path, &serde_json::json!({})).await {
+                            Ok(r) => { modal_test_result.set(Some(r)); load_servers(); }
+                            Err(e) => { error.set(Some(e)); }
+                        }
+                    }
+                    Err(e) => error.set(Some(e)),
+                }
+                modal_testing.set(false);
+            });
+        }
+    };
+
+    // ── 测试连接（列表页按钮）────────────────────────────────────────────
     let on_test = move |id: String| {
         testing_id.set(Some(id.clone()));
         test_result.set(None);
@@ -430,15 +495,51 @@ pub fn ServersPage() -> impl IntoView {
                         <div class="bg-red-900/50 border border-red-700 text-red-300 px-3 py-2 rounded-lg text-sm">{e}</div>
                     })}
 
+                    // 弹窗内测试结果
+                    {move || modal_test_result.get().map(|r| {
+                        let cls = if r.success {
+                            "bg-green-900/40 border border-green-700 rounded-lg px-3 py-2 text-sm"
+                        } else {
+                            "bg-red-900/40 border border-red-700 rounded-lg px-3 py-2 text-sm"
+                        };
+                        let lines: Vec<String> = r.message.split(": ").map(|s| s.to_string()).collect();
+                        view! {
+                            <div class=cls>
+                                <p class="font-medium mb-1">
+                                    {if r.success { "✅ 连接成功" } else { "❌ 连接失败" }}
+                                </p>
+                                {lines.into_iter().enumerate().map(|(i, line)| {
+                                    let style = format!("padding-left:{}px", (i * 10).min(30));
+                                    let cls = if i == 0 { "text-gray-200" } else { "text-gray-400 text-xs" };
+                                    view! {
+                                        <p class=cls style=style>
+                                            {if i > 0 { "↳ " } else { "" }}{line}
+                                        </p>
+                                    }
+                                }).collect::<Vec<_>>()}
+                                {r.tcpdump_version.map(|v| view! {
+                                    <p class="text-green-400 text-xs mt-1">"tcpdump: "{v}</p>
+                                })}
+                            </div>
+                        }
+                    })}
+
                     // 按钮
-                    <div class="flex gap-3 pt-1">
+                    <div class="flex gap-2 pt-1">
                         <button type="submit"
                             class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
                         >
                             {move || if edit_id.get().is_some() { "保存修改" } else { "添加" }}
                         </button>
                         <button type="button"
-                            class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                            class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+                            disabled=move || modal_testing.get()
+                            on:click=on_modal_test
+                        >
+                            {move || if modal_testing.get() { "测试中…" } else { "测试连接" }}
+                        </button>
+                        <button type="button"
+                            class="px-4 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
                             on:click=move |_| { show_modal.set(false); reset_form(); }
                         >"取消"</button>
                     </div>
