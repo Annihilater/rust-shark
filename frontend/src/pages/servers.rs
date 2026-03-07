@@ -214,6 +214,11 @@ pub fn ServersPage() -> impl IntoView {
                     } else {
                         "bg-red-900/40 border border-red-700 rounded-xl p-4 mb-4"
                     };
+                    // 把错误链按 ": " 分割成多行，每行独立展示
+                    let lines: Vec<String> = r.message
+                        .split(": ")
+                        .map(|s| s.to_string())
+                        .collect();
                     view! {
                         <div class=banner_class>
                             <div class="flex items-center justify-between">
@@ -223,7 +228,24 @@ pub fn ServersPage() -> impl IntoView {
                                 <button class="text-gray-400 hover:text-white text-sm"
                                     on:click=move |_| test_result.set(None)>"✕"</button>
                             </div>
-                            <p class="text-sm text-gray-300 mt-1">{r.message.clone()}</p>
+                            // 错误链逐层展示
+                            <div class="mt-2 space-y-0.5">
+                                {lines.into_iter().enumerate().map(|(i, line)| {
+                                    let indent_px = (i * 12).min(48);
+                                    let style = format!("padding-left: {}px", indent_px);
+                                    let text_class = if i == 0 {
+                                        "text-sm text-gray-200 font-medium"
+                                    } else {
+                                        "text-xs text-gray-400"
+                                    };
+                                    view! {
+                                        <p class=text_class style=style>
+                                            {if i > 0 { "↳ " } else { "" }}
+                                            {line}
+                                        </p>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
                             {r.tcpdump_version.map(|v| view! {
                                 <p class="text-sm text-green-400 mt-1">"tcpdump: "{v}</p>
                             })}

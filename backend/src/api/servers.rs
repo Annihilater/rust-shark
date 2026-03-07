@@ -176,12 +176,24 @@ async fn test_server(
         password.as_deref(),
     )
     .await
-    .unwrap_or_else(|e| ServerTestResult {
-        success: false,
-        message: e.to_string(),
-        tcpdump_available: false,
-        tcpdump_version: None,
-        interfaces: vec![],
+    .unwrap_or_else(|e| {
+        // 打印完整错误链到服务端日志
+        tracing::error!(
+            host = %server.host,
+            port = server.port,
+            username = %server.username,
+            auth_type = %server.auth_type,
+            "SSH 连接测试失败: {:#}",
+            e
+        );
+        ServerTestResult {
+            success: false,
+            // {:#} 展示完整 anyhow 错误链，便于前端排查
+            message: format!("{:#}", e),
+            tcpdump_available: false,
+            tcpdump_version: None,
+            interfaces: vec![],
+        }
     });
 
     // 更新服务器状态
