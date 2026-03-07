@@ -16,11 +16,11 @@ use crate::state::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_captures).post(create_capture))
-        .route("/:id", get(get_capture).delete(delete_capture))
-        .route("/:id/stop", post(stop_capture))
-        .route("/:id/download", get(download_capture))
-        .route("/:id/packets", get(get_packets))
-        .route("/:id/packets/:no", get(get_packet_detail))
+        .route("/{id}", get(get_capture).delete(delete_capture))
+        .route("/{id}/stop", post(stop_capture))
+        .route("/{id}/download", get(download_capture))
+        .route("/{id}/packets", get(get_packets))
+        .route("/{id}/packets/{no}", get(get_packet_detail))
 }
 
 async fn list_captures(

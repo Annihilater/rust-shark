@@ -12,7 +12,7 @@ use crate::state::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/users", get(list_users).post(create_user))
-        .route("/users/:id", delete(delete_user))
+        .route("/users/{id}", delete(delete_user))
 }
 
 async fn list_users(
