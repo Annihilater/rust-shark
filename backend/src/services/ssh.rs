@@ -115,6 +115,34 @@ pub async fn test_server_connection(
     })
 }
 
+/// 获取服务器上正在监听的 TCP/UDP 端口列表（排序去重）
+pub async fn get_listening_ports(
+    host: &str,
+    port: u16,
+    username: &str,
+    auth_type: &str,
+    private_key_pem: Option<&str>,
+    password: Option<&str>,
+) -> Result<Vec<u16>> {
+    let (session, _key_file) =
+        connect(host, port, username, auth_type, private_key_pem, password).await?;
+
+    // ss 优先，fallback netstat
+    let cmd = "ss -tlunH 2>/dev/null | awk '{print $5}' | grep -oE '[0-9]+$' | sort -un; \
+               netstat -tlun 2>/dev/null | awk 'NR>2{print $4}' | grep -oE '[0-9]+$' | sort -un";
+    let (out, _) = exec(&session, cmd).await?;
+    session.close().await.ok();
+
+    let mut ports: Vec<u16> = out
+        .lines()
+        .filter_map(|l| l.trim().parse::<u16>().ok())
+        .filter(|&p| p > 0)
+        .collect();
+    ports.sort_unstable();
+    ports.dedup();
+    Ok(ports)
+}
+
 /// 获取服务器网卡列表
 pub async fn get_interfaces(
     host: &str,

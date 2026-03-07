@@ -18,6 +18,7 @@ pub fn router() -> Router<AppState> {
         .route("/{id}", put(update_server).delete(delete_server))
         .route("/{id}/test", post(test_server))
         .route("/{id}/interfaces", get(get_interfaces))
+        .route("/{id}/ports", get(get_ports))
 }
 
 async fn list_servers(
@@ -239,6 +240,37 @@ async fn get_interfaces(
     .map_err(|e| bad_request(format!("获取网卡失败: {}", e)))?;
 
     Ok(Json(interfaces))
+}
+
+async fn get_ports(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<String>,
+) -> ApiResult<Vec<u16>> {
+    let (private_key_pem, password) = get_server_credentials(&state, &id, &auth.user_id).await?;
+
+    let server = sqlx::query_as::<_, Server>(
+        "SELECT * FROM servers WHERE id = ? AND user_id = ?",
+    )
+    .bind(&id)
+    .bind(&auth.user_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(internal_error)?
+    .ok_or_else(|| not_found("服务器不存在"))?;
+
+    let ports = ssh::get_listening_ports(
+        &server.host,
+        server.port as u16,
+        &server.username,
+        &server.auth_type,
+        private_key_pem.as_deref(),
+        password.as_deref(),
+    )
+    .await
+    .map_err(|e| bad_request(format!("获取端口失败: {}", e)))?;
+
+    Ok(Json(ports))
 }
 
 /// 获取服务器凭证（解密）

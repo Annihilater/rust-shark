@@ -10,6 +10,7 @@ struct CaptureTask {
     interface: String,
     filter: Option<String>,
     duration: Option<i64>,
+    packet_limit: Option<i64>,
     status: String,
     file_size: Option<i64>,
     created_at: String,
@@ -49,21 +50,27 @@ pub fn CapturesPage() -> impl IntoView {
         }
     });
 
-    let tasks      = RwSignal::new(Vec::<CaptureTask>::new());
-    let servers    = RwSignal::new(Vec::<Server>::new());
-    let interfaces = RwSignal::new(Vec::<Interface>::new());
-    let show_modal = RwSignal::new(false);
-    let error      = RwSignal::new(Option::<String>::None);
+    let tasks          = RwSignal::new(Vec::<CaptureTask>::new());
+    let servers        = RwSignal::new(Vec::<Server>::new());
+    let interfaces     = RwSignal::new(Vec::<Interface>::new());
+    let ports          = RwSignal::new(Vec::<u16>::new());
+    let show_modal     = RwSignal::new(false);
+    let error          = RwSignal::new(Option::<String>::None);
     let loading_ifaces = RwSignal::new(false);
+    let loading_ports  = RwSignal::new(false);
+    let stopping_id    = RwSignal::new(Option::<String>::None);
 
-    // 表单
-    let server_id    = RwSignal::new(String::new());
-    let iface        = RwSignal::new(String::new());
-    let filter       = RwSignal::new(String::new());
-    let duration     = RwSignal::new(String::new());
-    let packet_limit = RwSignal::new(String::new());
-    let scheduled_at = RwSignal::new(String::new());
+    // 表单字段（带默认值）
+    let server_id     = RwSignal::new(String::new());
+    let iface         = RwSignal::new(String::new());
+    let filter        = RwSignal::new(String::new());
+    let duration      = RwSignal::new("60".to_string());      // 默认 60 秒
+    let packet_limit  = RwSignal::new("1000".to_string());    // 默认 1000 包
+    let scheduled_at  = RwSignal::new(String::new());
+    // 选中的端口（勾选框）
+    let selected_ports = RwSignal::new(Vec::<u16>::new());
 
+    // ── 加载 ──────────────────────────────────────────────────────────────
     let load_tasks = move || {
         leptos::task::spawn_local(async move {
             if let Ok(list) = crate::api::get::<Vec<CaptureTask>>("/api/captures").await {
@@ -83,35 +90,106 @@ pub fn CapturesPage() -> impl IntoView {
     load_tasks();
     load_servers();
 
-    // 服务器选择后加载网卡列表
+    // 定时刷新：有 running 任务时每 3 秒刷新一次
+    Effect::new(move |_| {
+        let has_running = tasks.get().iter().any(|t| t.status == "running");
+        if has_running {
+            leptos::task::spawn_local(async move {
+                gloo_timers::future::TimeoutFuture::new(3_000).await;
+                load_tasks();
+            });
+        }
+    });
+
+    // 服务器选择后加载网卡 + 端口
     Effect::new(move |_| {
         let sid = server_id.get();
         if sid.is_empty() {
             interfaces.set(vec![]);
+            ports.set(vec![]);
             iface.set(String::new());
+            selected_ports.set(vec![]);
             return;
         }
         loading_ifaces.set(true);
+        loading_ports.set(true);
         iface.set(String::new());
+        selected_ports.set(vec![]);
+
+        let sid2 = sid.clone();
         leptos::task::spawn_local(async move {
-            let path = format!("/api/servers/{}/interfaces", sid);
-            if let Ok(list) = crate::api::get::<Vec<Interface>>(&path).await {
-                // 自动选中第一个网卡
+            // 并行加载网卡和端口
+            let ifaces_path = format!("/api/servers/{}/interfaces", sid);
+            let ports_path  = format!("/api/servers/{}/ports", sid2);
+
+            let (iface_res, ports_res) = futures_join(
+                crate::api::get::<Vec<Interface>>(&ifaces_path),
+                crate::api::get::<Vec<u16>>(&ports_path),
+            ).await;
+
+            if let Ok(list) = iface_res {
                 let first = list.first().map(|i| i.name.clone()).unwrap_or_default();
                 interfaces.set(list);
                 iface.set(first);
             }
             loading_ifaces.set(false);
+
+            if let Ok(list) = ports_res {
+                ports.set(list);
+            }
+            loading_ports.set(false);
         });
     });
 
+    // ── 停止任务 ─────────────────────────────────────────────────────────
+    let on_stop = move |id: String| {
+        stopping_id.set(Some(id.clone()));
+        leptos::task::spawn_local(async move {
+            let path = format!("/api/captures/{}/stop", id);
+            if crate::api::post::<_, serde_json::Value>(&path, &serde_json::json!({})).await.is_ok() {
+                load_tasks();
+            }
+            stopping_id.set(None);
+        });
+    };
+
+    // ── 删除任务 ─────────────────────────────────────────────────────────
+    let on_delete = move |id: String| {
+        leptos::task::spawn_local(async move {
+            let path = format!("/api/captures/{}", id);
+            if crate::api::delete::<serde_json::Value>(&path).await.is_ok() {
+                load_tasks();
+            }
+        });
+    };
+
+    // ── 提交新建 ─────────────────────────────────────────────────────────
     let on_create = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
         error.set(None);
+
+        // 把勾选的端口追加到 BPF filter
+        let port_filter = {
+            let ps = selected_ports.get();
+            if ps.is_empty() {
+                String::new()
+            } else {
+                let parts: Vec<String> = ps.iter().map(|p| format!("port {}", p)).collect();
+                format!("({})", parts.join(" or "))
+            }
+        };
+        let user_filter = filter.get();
+        let combined_filter = match (user_filter.is_empty(), port_filter.is_empty()) {
+            (true,  true)  => None,
+            (true,  false) => Some(port_filter),
+            (false, true)  => Some(user_filter),
+            (false, false) => Some(format!("({}) and {}", user_filter, port_filter)),
+        };
+
         let req = CreateCaptureRequest {
             server_id: server_id.get(),
             interface: iface.get(),
-            filter: { let f = filter.get(); if f.is_empty() { None } else { Some(f) } },
+            filter: combined_filter,
             duration: duration.get().parse().ok(),
             packet_limit: packet_limit.get().parse().ok(),
             scheduled_at: { let s = scheduled_at.get(); if s.is_empty() { None } else { Some(s) } },
@@ -126,21 +204,13 @@ pub fn CapturesPage() -> impl IntoView {
                     server_id.set(String::new());
                     iface.set(String::new());
                     filter.set(String::new());
-                    duration.set(String::new());
-                    packet_limit.set(String::new());
+                    duration.set("60".to_string());
+                    packet_limit.set("1000".to_string());
                     scheduled_at.set(String::new());
+                    selected_ports.set(vec![]);
                     load_tasks();
                 }
                 Err(e) => error.set(Some(e)),
-            }
-        });
-    };
-
-    let on_delete = move |id: String| {
-        leptos::task::spawn_local(async move {
-            let path = format!("/api/captures/{}", id);
-            if crate::api::delete::<serde_json::Value>(&path).await.is_ok() {
-                load_tasks();
             }
         });
     };
@@ -168,9 +238,12 @@ pub fn CapturesPage() -> impl IntoView {
                 // 任务列表
                 <div class="space-y-3">
                     {move || tasks.get().into_iter().map(|task| {
-                        let id_dl  = task.id.clone();
-                        let id_ana = task.id.clone();
-                        let id_del = task.id.clone();
+                        let id_stop = task.id.clone();
+                        let id_dl   = task.id.clone();
+                        let id_ana  = task.id.clone();
+                        let id_del  = task.id.clone();
+                        let is_running  = task.status == "running";
+                        let is_done     = task.status == "done";
                         let status_class = match task.status.as_str() {
                             "done"      => "text-green-400",
                             "running"   => "text-blue-400",
@@ -185,7 +258,6 @@ pub fn CapturesPage() -> impl IntoView {
                             "cancelled" => "⊘ 已取消",
                             _           => "○ 等待",
                         };
-                        let is_done = task.status == "done";
                         view! {
                             <div class="bg-gray-800 border border-gray-700 rounded-xl p-4">
                                 <div class="flex items-start justify-between">
@@ -194,19 +266,38 @@ pub fn CapturesPage() -> impl IntoView {
                                             <span class=format!("text-sm font-medium {}", status_class)>{status_label}</span>
                                             <span class="font-mono text-sm text-gray-300">{task.interface.clone()}</span>
                                             {task.filter.clone().map(|f| view! {
-                                                <span class="text-xs bg-gray-700 px-2 py-0.5 rounded text-gray-300 font-mono">{f}</span>
+                                                <span class="text-xs bg-gray-700 px-2 py-0.5 rounded text-gray-300 font-mono max-w-xs truncate">{f}</span>
                                             })}
                                             {task.duration.map(|d| view! {
                                                 <span class="text-xs text-gray-500">{d}"s"</span>
                                             })}
+                                            {task.packet_limit.map(|p| view! {
+                                                <span class="text-xs text-gray-500">"max "{p}" 包"</span>
+                                            })}
                                         </div>
                                         <p class="text-xs text-gray-500 mt-1">"创建: "{task.created_at.clone()}</p>
+                                        {task.finished_at.map(|t| view! {
+                                            <p class="text-xs text-gray-500 mt-0.5">"结束: "{t}</p>
+                                        })}
                                         {task.file_size.map(|s| view! {
                                             <p class="text-xs text-gray-400 mt-0.5">"大小: "{format_size(s)}</p>
                                         })}
                                     </div>
                                     <div class="flex items-center gap-2 shrink-0">
-                                        {if is_done {
+                                        // 运行中 → 停止按钮
+                                        {if is_running {
+                                            let id_s  = id_stop.clone();
+                                            let id_s2 = id_stop.clone();
+                                            view! {
+                                                <button
+                                                    class="bg-yellow-600 hover:bg-yellow-500 text-white text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                                    disabled=move || stopping_id.get() == Some(id_s.clone())
+                                                    on:click=move |_| on_stop(id_s2.clone())
+                                                >
+                                                    {move || if stopping_id.get() == Some(id_stop.clone()) { "停止中…" } else { "⏹ 停止" }}
+                                                </button>
+                                            }.into_any()
+                                        } else if is_done {
                                             view! {
                                                 <div class="flex gap-2">
                                                     <a
@@ -223,7 +314,7 @@ pub fn CapturesPage() -> impl IntoView {
                                             view! { <div/> }.into_any()
                                         }}
                                         <button
-                                            class="text-red-400 hover:text-red-300 text-sm px-3 py-1.5"
+                                            class="text-red-400 hover:text-red-300 text-sm px-3 py-1.5 transition-colors"
                                             on:click=move |_| on_delete(id_del.clone())
                                         >"删除"</button>
                                     </div>
@@ -264,7 +355,7 @@ pub fn CapturesPage() -> impl IntoView {
                         />
                     </div>
 
-                    // 网卡（依赖服务器选择）
+                    // 网卡
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">
                             "网卡"
@@ -285,33 +376,80 @@ pub fn CapturesPage() -> impl IntoView {
                         />
                     </div>
 
+                    // 端口勾选（服务器上正在监听的端口）
+                    {move || {
+                        let ps = ports.get();
+                        if ps.is_empty() {
+                            // 还没加载或没选服务器，不显示
+                            if loading_ports.get() {
+                                view! {
+                                    <div class="text-xs text-gray-500">"正在检测监听端口…"</div>
+                                }.into_any()
+                            } else {
+                                view! { <div/> }.into_any()
+                            }
+                        } else {
+                            view! {
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">
+                                        "监听端口过滤（可多选，空=不过滤）"
+                                    </label>
+                                    <div class="bg-gray-700 border border-gray-600 rounded-lg p-2 max-h-32 overflow-y-auto">
+                                        <div class="flex flex-wrap gap-2">
+                                            {ps.into_iter().map(|p| {
+                                                let p2 = p;
+                                                view! {
+                                                    <label class="flex items-center gap-1 cursor-pointer select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            class="accent-blue-500"
+                                                            prop:checked=move || selected_ports.get().contains(&p2)
+                                                            on:change=move |ev| {
+                                                                let checked = event_target_checked(&ev);
+                                                                selected_ports.update(|v| {
+                                                                    if checked { if !v.contains(&p2) { v.push(p2); v.sort_unstable(); } }
+                                                                    else { v.retain(|&x| x != p2); }
+                                                                });
+                                                            }
+                                                        />
+                                                        <span class="text-xs font-mono text-gray-200">{p}</span>
+                                                    </label>
+                                                }
+                                            }).collect::<Vec<_>>()}
+                                        </div>
+                                    </div>
+                                </div>
+                            }.into_any()
+                        }
+                    }}
+
                     // BPF 过滤器
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"BPF 过滤器（可选）"</label>
+                        <label class="block text-xs text-gray-400 mb-1">"BPF 过滤器（可选，与端口选择叠加）"</label>
                         <input
                             class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
-                            placeholder="tcp port 80"
+                            placeholder="tcp and host 1.2.3.4"
                             prop:value=filter
                             on:input=move |ev| filter.set(event_target_value(&ev))
                         />
                     </div>
 
-                    // 时长 + 包数
+                    // 时长 + 包数（默认值已填好）
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">"时长（秒，空=不限）"</label>
+                            <label class="block text-xs text-gray-400 mb-1">"时长（秒，0=不限）"</label>
                             <input
                                 class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                                type="number" placeholder="60"
+                                type="number" min="0" placeholder="60"
                                 prop:value=duration
                                 on:input=move |ev| duration.set(event_target_value(&ev))
                             />
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">"包数限制（空=不限）"</label>
+                            <label class="block text-xs text-gray-400 mb-1">"包数限制（0=不限）"</label>
                             <input
                                 class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                                type="number" placeholder="1000"
+                                type="number" min="0" placeholder="1000"
                                 prop:value=packet_limit
                                 on:input=move |ev| packet_limit.set(event_target_value(&ev))
                             />
@@ -346,4 +484,12 @@ pub fn CapturesPage() -> impl IntoView {
             </Modal>
         </Layout>
     }
+}
+
+// 简化的并行 future join（避免引入 futures crate）
+async fn futures_join<A, B>(a: impl std::future::Future<Output = A>, b: impl std::future::Future<Output = B>) -> (A, B) {
+    // 顺序执行（WASM 单线程，无需真并行）
+    let ra = a.await;
+    let rb = b.await;
+    (ra, rb)
 }
