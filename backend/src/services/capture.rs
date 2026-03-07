@@ -2,6 +2,7 @@ use crate::db::DbPool;
 use crate::models::capture::CaptureTask;
 use crate::models::server::Server;
 use crate::services::ssh;
+use crate::state::CaptureRegistry;
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 use tracing::{error, info, warn};
@@ -109,6 +110,7 @@ pub async fn run_capture(
     password: Option<&str>,
     data_dir: &str,
     pool: DbPool,
+    capture_pids: CaptureRegistry,
 ) -> Result<PathBuf> {
     let (session, _key_file) = ssh::connect(
         &server.host,
@@ -119,6 +121,15 @@ pub async fn run_capture(
         password,
     )
     .await?;
+
+    // ── 启动前：kill 该服务器上所有残留的 tcpdump 进程 ──────────────────
+    let (kill_out, _) = ssh::exec(
+        &session,
+        "pids=$(pgrep -x tcpdump 2>/dev/null); [ -n \"$pids\" ] && kill $pids && echo \"killed: $pids\" || echo 'no stale tcpdump'",
+    ).await?;
+    info!("清理残留 tcpdump: {}", kill_out.trim());
+    // 稍等进程退出
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
     // 检测远端架构
     let (arch, _) = ssh::exec(&session, "uname -m").await?;
@@ -145,13 +156,18 @@ pub async fn run_capture(
         tcpdump_path, task.interface, remote_file, filter_part, count_part
     );
 
-    let cmd = if let Some(dur) = task.duration {
-        format!("sudo timeout {} {}", dur, tcpdump_cmd)
+    // 后台启动 tcpdump，立即拿到 PID，供停止时使用
+    // 用 setsid 让子进程脱离 SSH session，这样 session 断开也不会死
+    let bg_cmd = if let Some(dur) = task.duration {
+        format!(
+            "sudo timeout {} {} & echo $!",
+            dur, tcpdump_cmd
+        )
     } else {
-        format!("sudo {}", tcpdump_cmd)
+        format!("sudo {} & echo $!", tcpdump_cmd)
     };
 
-    info!("执行抓包命令: {}", cmd);
+    info!("执行抓包命令: {}", bg_cmd);
 
     // 更新状态为 running
     sqlx::query("UPDATE capture_tasks SET status = 'running' WHERE id = ?")
@@ -159,38 +175,85 @@ pub async fn run_capture(
         .execute(&pool)
         .await?;
 
-    // 执行抓包（同步等待完成）
-    let (stderr, exit_code) = {
-        let output = session
-            .command("sh")
-            .arg("-c")
-            .arg(&cmd)
-            .output()
-            .await?;
-        (
-            String::from_utf8_lossy(&output.stderr).to_string(),
-            output.status.code().unwrap_or(-1),
-        )
-    };
+    // 后台启动并取得 PID
+    let (pid_out, _) = ssh::exec(&session, &bg_cmd).await?;
+    let remote_pid: u32 = pid_out.trim().parse().unwrap_or(0);
+    info!("tcpdump 后台 PID: {}", remote_pid);
 
-    // exit_code 124 = timeout 正常结束
-    if exit_code != 0 && exit_code != 124 {
-        let err_msg = format!("抓包失败 (exit={}): {}", exit_code, stderr.trim());
-        error!("{}", err_msg);
-        sqlx::query(
-            "UPDATE capture_tasks SET status = 'failed', error_msg = ?, finished_at = datetime('now') WHERE id = ?",
+    // 注册到全局 registry
+    if remote_pid > 0 {
+        capture_pids.lock().await.insert(
+            task.id.clone(),
+            (server.id.clone(), remote_pid),
+        );
+    }
+
+    // 轮询等待进程结束（每 2 秒检查一次）
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        // 检查数据库是否被 stop 接口标记为 cancelled
+        let status: Option<String> = sqlx::query_scalar(
+            "SELECT status FROM capture_tasks WHERE id = ?",
         )
-        .bind(&err_msg)
         .bind(&task.id)
-        .execute(&pool)
-        .await?;
-        anyhow::bail!("{}", err_msg);
+        .fetch_optional(&pool)
+        .await
+        .unwrap_or(None);
+
+        if status.as_deref() == Some("cancelled") {
+            // 用户点了停止：kill 进程
+            if remote_pid > 0 {
+                let kill_cmd = format!("kill {} 2>/dev/null; pkill -P {} 2>/dev/null; true", remote_pid, remote_pid);
+                ssh::exec(&session, &kill_cmd).await.ok();
+                info!("已 kill tcpdump PID {}", remote_pid);
+            }
+            break;
+        }
+
+        // 检查进程是否还活着
+        let (_, alive_code) = ssh::exec(
+            &session,
+            &format!("kill -0 {} 2>/dev/null", remote_pid),
+        ).await.unwrap_or(("".to_string(), 1));
+
+        if alive_code != 0 {
+            // 进程已自然结束
+            info!("tcpdump PID {} 已结束", remote_pid);
+            break;
+        }
+    }
+
+    // 从 registry 移除
+    capture_pids.lock().await.remove(&task.id);
+
+    // 检查当前状态（可能已被标记为 cancelled）
+    let current_status: Option<String> = sqlx::query_scalar(
+        "SELECT status FROM capture_tasks WHERE id = ?",
+    )
+    .bind(&task.id)
+    .fetch_optional(&pool)
+    .await
+    .unwrap_or(None);
+
+    if current_status.as_deref() == Some("cancelled") {
+        // 即便取消，也尝试下载已有的部分数据
+        info!("任务已取消，尝试下载已有数据: {}", task.id);
     }
 
     // 通过 base64 下载 pcap 文件
-    let (file_data_b64, code) = ssh::exec(&session, &format!("base64 {}", remote_file)).await?;
-    if code != 0 {
-        anyhow::bail!("读取远端抓包文件失败");
+    let (file_data_b64, code) = ssh::exec(&session, &format!("base64 {} 2>/dev/null", remote_file)).await?;
+    if code != 0 || file_data_b64.trim().is_empty() {
+        // 没有文件（比如刚启动就被 cancel）
+        sqlx::query(
+            "UPDATE capture_tasks SET status = 'cancelled', finished_at = datetime('now') WHERE id = ? AND status = 'running'",
+        )
+        .bind(&task.id)
+        .execute(&pool)
+        .await?;
+        ssh::exec(&session, &format!("rm -f {}", remote_file)).await.ok();
+        session.close().await.ok();
+        return Err(anyhow::anyhow!("无抓包数据"));
     }
 
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine};

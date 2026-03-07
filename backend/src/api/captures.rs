@@ -311,6 +311,7 @@ async fn run_capture_task(
         password.as_deref(),
         &state.config.data_dir,
         state.pool.clone(),
+        state.capture_pids.clone(),
     )
     .await?;
 
