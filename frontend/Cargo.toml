@@ -31,6 +31,7 @@ serde.workspace = true
 serde_json.workspace = true
 gloo-net = { version = "0.6", features = ["http"] }
 gloo-storage = "0.3"
+gloo-timers = { version = "0.3", features = ["futures"] }
 chrono.workspace = true
 uuid = { version = "1", features = ["v4", "serde", "js"] }
 console_error_panic_hook = "0.1"

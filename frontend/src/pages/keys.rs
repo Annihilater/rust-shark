@@ -325,43 +325,122 @@ pub fn KeysPage() -> impl IntoView {
                 title="密钥详情"
                 on_close=Callback::new(move |_| view_key.set(None))
             >
-                {move || view_key.get().map(|k| view! {
-                    <div class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs text-gray-500 mb-1">"名称"</label>
-                                <p class="text-white font-medium text-sm">{k.name.clone()}</p>
+                {move || view_key.get().map(|k| {
+                    let cmd_copied   = RwSignal::new(false);
+                    let pubkey_copied = RwSignal::new(false);
+
+                    // 写入公钥的命令
+                    let install_cmd = format!(
+                        "echo \"{}\" >> ~/.ssh/authorized_keys",
+                        k.public_key.trim()
+                    );
+                    let cmd_for_copy    = install_cmd.clone();
+                    let pubkey_for_copy = k.public_key.clone();
+
+                    let copy_to_clipboard = |text: String, copied: RwSignal<bool>| {
+                        let win = web_sys::window().unwrap();
+                        let _ = win.navigator().clipboard().write_text(&text);
+                        copied.set(true);
+                        // 2 秒后重置
+                        leptos::task::spawn_local(async move {
+                            gloo_timers::future::TimeoutFuture::new(2000).await;
+                            copied.set(false);
+                        });
+                    };
+
+                    view! {
+                        <div class="space-y-4">
+                            // 名称 + 类型
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">"名称"</label>
+                                    <p class="text-white font-medium text-sm">{k.name.clone()}</p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">"类型"</label>
+                                    <span class="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded font-mono">{k.key_type.clone()}</span>
+                                </div>
                             </div>
+
+                            // 指纹
                             <div>
-                                <label class="block text-xs text-gray-500 mb-1">"类型"</label>
-                                <span class="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded font-mono">{k.key_type.clone()}</span>
+                                <label class="block text-xs text-gray-500 mb-1">"SHA256 指纹"</label>
+                                <p class="text-xs font-mono text-green-400 break-all bg-gray-900 rounded px-2 py-1.5">{k.fingerprint.clone()}</p>
                             </div>
+
+                            // 公钥（带复制按钮）
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="text-xs text-gray-500">"公钥"</label>
+                                    <button
+                                        type="button"
+                                        class=move || {
+                                            if pubkey_copied.get() {
+                                                "text-xs text-green-400 flex items-center gap-1"
+                                            } else {
+                                                "text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1 transition-colors"
+                                            }
+                                        }
+                                        on:click={
+                                            let text = pubkey_for_copy.clone();
+                                            move |_| copy_to_clipboard(text.clone(), pubkey_copied)
+                                        }
+                                    >
+                                        {move || if pubkey_copied.get() { "✓ 已复制" } else { "复制" }}
+                                    </button>
+                                </div>
+                                <textarea
+                                    class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs font-mono text-gray-300 h-16 resize-none focus:outline-none"
+                                    readonly
+                                    prop:value=k.public_key.clone()
+                                />
+                            </div>
+
+                            // 写入 authorized_keys 命令
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="text-xs text-gray-500">"写入目标服务器"</label>
+                                    <button
+                                        type="button"
+                                        class=move || {
+                                            if cmd_copied.get() {
+                                                "text-xs text-green-400 flex items-center gap-1"
+                                            } else {
+                                                "text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1 transition-colors"
+                                            }
+                                        }
+                                        on:click={
+                                            let text = cmd_for_copy.clone();
+                                            move |_| copy_to_clipboard(text.clone(), cmd_copied)
+                                        }
+                                    >
+                                        {move || if cmd_copied.get() { "✓ 已复制" } else { "复制命令" }}
+                                    </button>
+                                </div>
+                                <div class="bg-gray-900 border border-gray-700 rounded px-3 py-2 font-mono text-xs text-yellow-300 break-all select-all">
+                                    {install_cmd.clone()}
+                                </div>
+                                <p class="text-xs text-gray-600 mt-1">"在目标服务器上执行此命令，将公钥追加到 authorized_keys"</p>
+                            </div>
+
+                            // 添加时间
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">"添加时间"</label>
+                                <p class="text-xs text-gray-400">{k.created_at.clone()}</p>
+                            </div>
+
+                            // 私钥安全提示
+                            <div class="bg-gray-900/60 border border-gray-700 text-gray-400 px-3 py-2 rounded-lg text-xs flex items-center gap-2">
+                                <span>"🔒"</span>
+                                <span>"私钥已加密存储于数据库，SSH 连接时在内存中解密使用"</span>
+                            </div>
+
+                            <button
+                                class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                                on:click=move |_| view_key.set(None)
+                            >"关闭"</button>
                         </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">"SHA256 指纹"</label>
-                            <p class="text-xs font-mono text-green-400 break-all bg-gray-900 rounded px-2 py-1.5">{k.fingerprint.clone()}</p>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">"公钥"</label>
-                            <textarea
-                                class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs font-mono text-gray-300 h-20 resize-none focus:outline-none"
-                                readonly
-                                prop:value=k.public_key.clone()
-                            />
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">"添加时间"</label>
-                            <p class="text-xs text-gray-400">{k.created_at.clone()}</p>
-                        </div>
-                        <div class="bg-gray-900/60 border border-gray-700 text-gray-400 px-3 py-2 rounded-lg text-xs flex items-center gap-2">
-                            <span>"🔒"</span>
-                            <span>"私钥已加密存储于数据库，SSH 连接时在内存中解密使用"</span>
-                        </div>
-                        <button
-                            class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
-                            on:click=move |_| view_key.set(None)
-                        >"关闭"</button>
-                    </div>
+                    }
                 })}
             </Modal>
         </Layout>
