@@ -17,7 +17,10 @@ pub fn Layout(children: Children) -> impl IntoView {
                         <a href="/" class="hover:text-blue-400 transition-colors">"仪表盘"</a>
                         <a href="/servers" class="hover:text-blue-400 transition-colors">"服务器"</a>
                         <a href="/keys" class="hover:text-blue-400 transition-colors">"SSH密钥"</a>
+                        <a href="/capture-profiles" class="hover:text-blue-400 transition-colors">"抓包配置"</a>
                         <a href="/captures" class="hover:text-blue-400 transition-colors">"抓包任务"</a>
+                        <a href="/analysis" class="hover:text-blue-400 transition-colors">"包分析"</a>
+                        <a href="/capture-guide" class="hover:text-blue-400 transition-colors text-gray-500 text-xs">"过滤器指南"</a>
                         {move || auth.get().is_admin().then(|| view! {
                             <a href="/admin" class="hover:text-blue-400 transition-colors text-yellow-400">"管理"</a>
                         })}

@@ -1,5 +1,8 @@
 pub mod admin;
+pub mod analysis;
 pub mod capture_detail;
+pub mod capture_guide;
+pub mod capture_profiles;
 pub mod captures;
 pub mod dashboard;
 pub mod keys;
