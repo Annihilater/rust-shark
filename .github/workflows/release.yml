@@ -91,6 +91,7 @@ jobs:
     needs: [prepare-binaries, build-frontend]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - target: x86_64-unknown-linux-musl
@@ -108,6 +109,9 @@ jobs:
         with:
           name: third-party-binaries
           path: assets/binaries/
+
+      - name: 恢复二进制执行权限
+        run: chmod +x assets/binaries/*
 
       - name: 下载前端产物
         uses: actions/download-artifact@v4
@@ -134,17 +138,19 @@ jobs:
             --target ${{ matrix.target }} \
             --manifest-path backend/Cargo.toml
 
-      - name: 重命名产物
+      - name: 重命名并验证产物
         run: |
           cp target/${{ matrix.target }}/release/rust-shark ${{ matrix.artifact }}
           # 验证是静态链接
           file ${{ matrix.artifact }}
 
-      - name: 压缩产物
+      - name: 压缩产物并生成校验和
         run: |
           tar czf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
           sha256sum ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
           sha256sum ${{ matrix.artifact }}.tar.gz >> ${{ matrix.artifact }}.sha256
+          echo "--- SHA256 ---"
+          cat ${{ matrix.artifact }}.sha256
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
@@ -173,17 +179,20 @@ jobs:
           name: third-party-binaries
           path: assets/binaries/
 
+      - name: 恢复二进制执行权限
+        run: chmod +x assets/binaries/*
+
       - name: 下载前端产物
         uses: actions/download-artifact@v4
         with:
           name: frontend-dist
           path: frontend/dist/
 
-      - name: 设置 Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: 设置 QEMU（多平台支持）
         uses: docker/setup-qemu-action@v3
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: 登录 GitHub Container Registry
         uses: docker/login-action@v3
@@ -204,7 +213,7 @@ jobs:
             type=sha
 
       - name: 构建并推送 Docker 镜像
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -218,33 +227,39 @@ jobs:
   release:
     name: 发布 Release
     needs: [build-backend, build-docker]
+    # 即使 build-docker 失败，只要二进制构建成功也能发布
+    if: always() && needs.build-backend.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: 下载所有产物
+      - name: 下载 amd64 产物
         uses: actions/download-artifact@v4
         with:
-          pattern: rust-shark-linux-*
-          merge-multiple: true
+          name: rust-shark-linux-amd64
           path: release/
+
+      - name: 下载 arm64 产物
+        uses: actions/download-artifact@v4
+        with:
+          name: rust-shark-linux-arm64
+          path: release/
+
+      - name: 列出 release 目录
+        run: ls -lh release/
 
       - name: 生成 Release 说明
         id: changelog
         run: |
           VERSION="${GITHUB_REF_NAME}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          cat > release_notes.md << EOF
-          ## rust-shark ${VERSION}
 
-          ### 下载
-
-          | 平台 | 文件 |
-          |------|------|
-          | Linux x86_64 | \`rust-shark-linux-amd64\` |
-          | Linux ARM64  | \`rust-shark-linux-arm64\` |
+          DOCKER_STATUS="${{ needs.build-docker.result }}"
+          DOCKER_SECTION=""
+          if [ "$DOCKER_STATUS" = "success" ]; then
+            DOCKER_SECTION=$(cat << DOCKEREOF
 
           ### Docker
 
@@ -260,23 +275,39 @@ jobs:
             -e JWT_SECRET=your-jwt-secret \\
             ghcr.io/${{ github.repository }}:${VERSION}
           \`\`\`
+          DOCKEREOF
+          )
+          fi
+
+          cat > release_notes.md << EOF
+          ## rust-shark ${VERSION}
+
+          ### 下载
+
+          | 平台 | 文件 | 说明 |
+          |------|------|------|
+          | Linux x86_64 | \`rust-shark-linux-amd64\` | 静态链接，开箱即用 |
+          | Linux ARM64  | \`rust-shark-linux-arm64\` | 适用于 ARM 服务器 / 树莓派 |
 
           ### 快速部署
 
           \`\`\`bash
-          # 下载部署包
+          # Linux x86_64
           wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/rust-shark-linux-amd64
           chmod +x rust-shark-linux-amd64
           ./rust-shark-linux-amd64
           \`\`\`
+          ${DOCKER_SECTION}
 
           ### SHA256 校验
 
+          \`\`\`
           EOF
           cat release/*.sha256 >> release_notes.md
+          echo '```' >> release_notes.md
 
       - name: 创建 GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: "rust-shark ${{ steps.changelog.outputs.version }}"
           body_path: release_notes.md
@@ -288,3 +319,4 @@ jobs:
             release/rust-shark-linux-amd64.tar.gz
             release/rust-shark-linux-arm64.tar.gz
             release/rust-shark-linux-amd64.sha256
+            release/rust-shark-linux-arm64.sha256
