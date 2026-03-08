@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::components::{layout::Layout, modal::Modal};
+use crate::components::select::{Select, SelectOption};
 use crate::store::use_auth;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -161,11 +162,14 @@ pub fn AdminPage() -> impl IntoView {
                     </div>
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">"角色"</label>
-                        <select class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                            on:change=move |ev| role.set(event_target_value(&ev))>
-                            <option value="user">"普通用户"</option>
-                            <option value="admin">"管理员"</option>
-                        </select>
+                        <Select
+                            options=vec![
+                                SelectOption::new("user", "👤 普通用户"),
+                                SelectOption::new("admin", "👑 管理员"),
+                            ]
+                            value=role.read_only()
+                            on_change=Callback::new(move |v| role.set(v))
+                        />
                     </div>
                     {move || error.get().map(|e| view! {
                         <div class="bg-red-900/50 border border-red-700 text-red-300 px-3 py-2 rounded-lg text-sm">{e}</div>
