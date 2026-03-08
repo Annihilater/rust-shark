@@ -1,7 +1,7 @@
 # ─── Stage 1: 构建后端 ─────────────────────────────────────────────────────────
 # 前端 WASM 由 CI 的 build-frontend job 预先构建并注入到 Docker build context 中
 # (frontend/dist/ 已存在于上下文，无需在此重新构建)
-FROM rust:1.85-slim AS backend-builder
+FROM rust:1-slim AS backend-builder
 
 WORKDIR /app
 
