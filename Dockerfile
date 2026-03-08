@@ -1,44 +1,21 @@
-# ─── Stage 1: 构建前端 WASM ────────────────────────────────────────────────────
-FROM rust:1.85-slim AS frontend-builder
-
-WORKDIR /app
-
-# 安装 trunk 和 wasm 目标
-RUN rustup target add wasm32-unknown-unknown
-RUN cargo install trunk --locked
-
-# 安装 Node/wasm-bindgen 依赖
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config libssl-dev curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# 复制前端代码
-COPY frontend/ ./frontend/
-COPY Cargo.toml ./
-COPY frontend/Cargo.toml ./frontend/Cargo.toml
-
-# 构建前端
-WORKDIR /app/frontend
-RUN trunk build --release
-
-# ─── Stage 2: 构建后端 ─────────────────────────────────────────────────────────
+# ─── Stage 1: 构建后端 ─────────────────────────────────────────────────────────
+# 前端 WASM 由 CI 的 build-frontend job 预先构建并注入到 Docker build context 中
+# (frontend/dist/ 已存在于上下文，无需在此重新构建)
 FROM rust:1.85-slim AS backend-builder
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config libssl-dev musl-tools \
+    pkg-config libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制全部源码
+# 复制全部源码（含 CI 注入的 frontend/dist/ 和 assets/binaries/）
 COPY . .
-# 复制前端构建产物
-COPY --from=frontend-builder /app/frontend/dist/ ./frontend/dist/
 
-# 构建后端（嵌入前端）
+# 构建后端（嵌入前端静态资源）
 RUN cargo build --release --manifest-path backend/Cargo.toml
 
-# ─── Stage 3: 最终运行镜像 ─────────────────────────────────────────────────────
+# ─── Stage 2: 最终运行镜像 ─────────────────────────────────────────────────────
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
