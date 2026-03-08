@@ -14,6 +14,7 @@ use crate::state::AppState;
 
 pub mod admin;
 pub mod auth;
+pub mod capture_profiles;
 pub mod captures;
 pub mod keys;
 pub mod servers;
@@ -168,6 +169,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/api/keys", keys::router())
         .nest("/api/servers", servers::router())
         .nest("/api/captures", captures::router())
+        .nest("/api/capture-profiles", capture_profiles::router())
         .merge(stats::stats_router())
         .layer(middleware::from_fn_with_state(
             state.clone(),
