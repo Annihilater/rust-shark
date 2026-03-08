@@ -103,34 +103,59 @@ pub async fn run_capture(
     pool: DbPool,
     capture_pids: CaptureRegistry,
 ) -> Result<PathBuf> {
-    let (session, key_file) = ssh::connect(
-        &server.host,
-        server.port as u16,
-        &server.username,
-        &server.auth_type,
-        private_key_pem,
-        password,
+    // 先写初始日志让前端可见，再做 SSH 连接（连接可能耗时）
+    update_log(&pool, &task.id, &format!("正在 SSH 连接 {}:{}...", server.host, server.port)).await;
+
+    let connect_result = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        ssh::connect(
+            &server.host,
+            server.port as u16,
+            &server.username,
+            &server.auth_type,
+            private_key_pem,
+            password,
+        ),
     )
-    .await?;
+    .await;
 
-    // ── 启动前：kill 该服务器上所有残留的 tcpdump 进程 ──────────────────
-    update_log(&pool, &task.id, "检查残留进程...").await;
-
-    let (kill_out, _) = ssh::exec(
-        &session,
-        "pids=$(pgrep -x tcpdump 2>/dev/null); [ -n \"$pids\" ] && kill $pids && echo \"killed: $pids\" || echo 'no stale tcpdump'",
-    ).await?;
-    info!("清理残留 tcpdump: {}", kill_out.trim());
-
-    let kill_log = if kill_out.trim() == "no stale tcpdump" {
-        "无残留进程".to_string()
-    } else {
-        format!("已清理 {}", kill_out.trim())
+    let (session, key_file) = match connect_result {
+        Ok(Ok(s)) => s,
+        Ok(Err(e)) => {
+            let msg = format!("❌ SSH 连接失败: {:#}", e);
+            update_log(&pool, &task.id, &msg).await;
+            return Err(anyhow::anyhow!("{}", msg));
+        }
+        Err(_) => {
+            let msg = format!("❌ SSH 连接超时（30s），请检查服务器 {}:{} 是否可达", server.host, server.port);
+            update_log(&pool, &task.id, &msg).await;
+            return Err(anyhow::anyhow!("{}", msg));
+        }
     };
-    update_log(&pool, &task.id, &kill_log).await;
 
-    // 稍等进程退出
-    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    update_log(&pool, &task.id, "SSH 连接成功").await;
+
+    // SSH 连接成功后立即将状态改为 running，让前端可见日志面板
+    sqlx::query("UPDATE capture_tasks SET status = 'running' WHERE id = ?")
+        .bind(&task.id)
+        .execute(&pool)
+        .await?;
+
+    // ── 启动前：检查残留进程，仅提示，不强制 kill ───────────────────────
+    update_log(&pool, &task.id, "检查远端环境...").await;
+
+    let (stale_out, _) = ssh::exec(
+        &session,
+        "pgrep -x tcpdump 2>/dev/null | tr '\\n' ',' | sed 's/,$//'",
+    ).await?;
+    let stale_pids = stale_out.trim().to_string();
+    if !stale_pids.is_empty() {
+        let warn = format!("⚠ 警告：服务器上已有 tcpdump 进程 (PID: {})，未强制终止。\n  如遇权限或资源冲突，请先手动停止旧任务再重试。", stale_pids);
+        info!("{}", warn);
+        update_log(&pool, &task.id, &warn).await;
+    } else {
+        update_log(&pool, &task.id, "无残留进程").await;
+    }
 
     // 检测远端架构
     let (arch, _) = ssh::exec(&session, "uname -m").await?;
@@ -173,16 +198,31 @@ pub async fn run_capture(
     info!("{}", cmd_log);
     update_log(&pool, &task.id, &cmd_log).await;
 
-    // 更新状态为 running
-    sqlx::query("UPDATE capture_tasks SET status = 'running' WHERE id = ?")
+    // (status 已在 SSH 连接成功时设为 running，无需重复更新)
+
+    // 后台启动并取得 PID
+    let (pid_out, pid_exit) = ssh::exec(&session, &bg_cmd).await?;
+    let remote_pid: u32 = pid_out.trim().lines().last().unwrap_or("").parse().unwrap_or(0);
+    info!("tcpdump 后台 PID: {} (exit: {})", remote_pid, pid_exit);
+
+    if remote_pid == 0 || pid_exit != 0 {
+        // 启动失败：将任务标记为 failed，写入错误日志，供用户排查
+        let err_log = format!(
+            "❌ tcpdump 启动失败 (exit code: {})\n输出: {}\n\n可能原因：\n  • 服务器上已有 tcpdump 占用接口（请先停止旧任务）\n  • 缺少 sudo 权限\n  • 网卡名称 \"{}\" 不存在\n请根据日志排查后重试。",
+            pid_exit,
+            pid_out.trim(),
+            task.interface,
+        );
+        update_log(&pool, &task.id, &err_log).await;
+        sqlx::query(
+            "UPDATE capture_tasks SET status = 'failed', finished_at = datetime('now') WHERE id = ?",
+        )
         .bind(&task.id)
         .execute(&pool)
         .await?;
-
-    // 后台启动并取得 PID
-    let (pid_out, _) = ssh::exec(&session, &bg_cmd).await?;
-    let remote_pid: u32 = pid_out.trim().parse().unwrap_or(0);
-    info!("tcpdump 后台 PID: {}", remote_pid);
+        session.close().await.ok();
+        return Err(anyhow::anyhow!("tcpdump 启动失败，详见任务日志"));
+    }
 
     let pid_log = format!("tcpdump 已启动 (PID: {})", remote_pid);
     update_log(&pool, &task.id, &pid_log).await;

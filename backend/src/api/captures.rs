@@ -83,7 +83,8 @@ async fn create_capture(
         req.filter,
         req.duration,
         req.packet_limit,
-        req.scheduled_at,
+        // 空字符串归一化为 None，避免调度逻辑误判
+        req.scheduled_at.filter(|s| !s.trim().is_empty()),
         req.repeat_type,
         req.repeat_until,
     );
@@ -115,7 +116,17 @@ async fn create_capture(
         let user_id = auth.user_id.clone();
         tokio::spawn(async move {
             if let Err(e) = run_capture_task(&state_clone, &task_clone, &user_id).await {
-                tracing::error!("抓包任务失败 {}: {}", task_clone.id, e);
+                tracing::error!("抓包任务失败 {}: {:#}", task_clone.id, e);
+                // 将错误写回数据库，前端可通过日志看到原因
+                let err_msg = format!("❌ 任务启动失败: {:#}", e);
+                sqlx::query(
+                    "UPDATE capture_tasks SET status = 'failed', finished_at = datetime('now'), log_msg = ? WHERE id = ? AND status != 'done' AND status != 'cancelled'",
+                )
+                .bind(&err_msg)
+                .bind(&task_clone.id)
+                .execute(&state_clone.pool)
+                .await
+                .ok();
             }
         });
     }
@@ -138,8 +149,8 @@ async fn stop_capture(
     .map_err(internal_error)?
     .ok_or_else(|| not_found("任务不存在"))?;
 
-    if task.status != "running" {
-        return Err(bad_request("任务不在运行状态"));
+    if task.status != "running" && task.status != "pending" {
+        return Err(bad_request("任务不在运行或等待状态"));
     }
 
     sqlx::query(
