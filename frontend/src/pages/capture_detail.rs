@@ -23,6 +23,100 @@ struct PacketDetail {
     raw: String,
 }
 
+/// Render a sharkd protocol tree node recursively.
+/// Each node has: "l" (label), "t" (type/abbreviation), "n" (children array)
+fn render_tree(node: &serde_json::Value, depth: usize) -> String {
+    let mut out = String::new();
+    let indent = "  ".repeat(depth);
+
+    match node {
+        serde_json::Value::Array(arr) => {
+            for child in arr {
+                out.push_str(&render_tree(child, depth));
+            }
+        }
+        serde_json::Value::Object(map) => {
+            let label = map.get("l")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let abbr = map.get("t")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            if !label.is_empty() {
+                let prefix = if depth == 0 { "▸ " } else { "  " };
+                out.push_str(&format!("{}{}{}", indent, prefix, label));
+                if !abbr.is_empty() && abbr != label {
+                    out.push_str(&format!(" [{}]", abbr));
+                }
+                out.push('\n');
+            }
+
+            if let Some(children) = map.get("n").and_then(|v| v.as_array()) {
+                for child in children {
+                    out.push_str(&render_tree(child, depth + 1));
+                }
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
+/// Format raw hex bytes (hex string from sharkd) into classic Wireshark hex dump
+fn format_hex_dump(hex: &str) -> String {
+    let hex = hex.trim();
+    if hex.is_empty() {
+        return String::new();
+    }
+
+    // Collect bytes from hex string (may be space-separated or continuous)
+    let bytes: Vec<u8> = if hex.contains(' ') {
+        hex.split_whitespace()
+            .filter_map(|s| u8::from_str_radix(s, 16).ok())
+            .collect()
+    } else {
+        (0..hex.len())
+            .step_by(2)
+            .filter_map(|i| {
+                hex.get(i..i + 2)
+                    .and_then(|s| u8::from_str_radix(s, 16).ok())
+            })
+            .collect()
+    };
+
+    if bytes.is_empty() {
+        return hex.to_string();
+    }
+
+    let mut result = String::new();
+    for (i, chunk) in bytes.chunks(16).enumerate() {
+        // Offset
+        result.push_str(&format!("{:04x}  ", i * 16));
+        // Hex part
+        for (j, b) in chunk.iter().enumerate() {
+            result.push_str(&format!("{:02x} ", b));
+            if j == 7 { result.push(' '); }
+        }
+        // Padding if last row is short
+        if chunk.len() < 16 {
+            let missing = 16 - chunk.len();
+            for j in 0..missing {
+                result.push_str("   ");
+                if chunk.len() + j == 7 { result.push(' '); }
+            }
+        }
+        result.push(' ');
+        // ASCII part
+        for b in chunk {
+            let ch = if *b >= 0x20 && *b < 0x7f { *b as char } else { '.' };
+            result.push(ch);
+        }
+        result.push('\n');
+    }
+    result
+}
+
 #[component]
 pub fn CaptureDetailPage() -> impl IntoView {
     let auth = use_auth();
@@ -40,18 +134,29 @@ pub fn CaptureDetailPage() -> impl IntoView {
     let filter = RwSignal::new(String::new());
     let loading = RwSignal::new(false);
     let error = RwSignal::new(Option::<String>::None);
+    let total_shown = RwSignal::new(0u64);
 
     let load_packets = move || {
         loading.set(true);
+        selected.set(None);
         let id = capture_id();
         let f = filter.get();
         leptos::task::spawn_local(async move {
-            let mut path = format!("/api/captures/{}/packets?limit=500", id);
+            let mut path = format!("/api/captures/{}/packets?limit=1000", id);
             if !f.is_empty() {
-                path.push_str(&format!("&filter={}", f));
+                // Simple percent-encode for URL query param (handles spaces and special chars)
+                let encoded: String = f.bytes().flat_map(|b| {
+                    match b {
+                        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
+                        | b'-' | b'_' | b'.' | b'~' => vec![b as char],
+                        _ => format!("%{:02X}", b).chars().collect::<Vec<_>>(),
+                    }
+                }).collect();
+                path.push_str(&format!("&filter={}", encoded));
             }
             match crate::api::get::<Vec<PacketSummary>>(&path).await {
                 Ok(list) => {
+                    total_shown.set(list.len() as u64);
                     packets.set(list);
                     error.set(None);
                 }
@@ -109,17 +214,31 @@ pub fn CaptureDetailPage() -> impl IntoView {
     view! {
         <Layout>
             <div class="max-w-full">
+                // 顶栏
                 <div class="flex items-center gap-4 mb-4">
-                    <a href="/captures" class="text-gray-400 hover:text-white">"← 返回"</a>
+                    <a href="/captures" class="text-gray-400 hover:text-white transition-colors">
+                        "← 返回"
+                    </a>
                     <h1 class="text-xl font-bold">"数据包分析"</h1>
                     <span class="text-xs text-gray-500 font-mono">{capture_id}</span>
+                    {move || (!loading.get() && !packets.get().is_empty()).then(|| view! {
+                        <span class="text-xs text-gray-500">
+                            "共 " {total_shown.get()} " 个包"
+                        </span>
+                    })}
+                    <a
+                        href="/capture-guide"
+                        class="ml-auto text-xs text-blue-400 hover:text-blue-300 transition-colors border border-blue-800 hover:border-blue-600 rounded px-2 py-1"
+                    >
+                        "📖 过滤器用法"
+                    </a>
                 </div>
 
-                // 过滤器
+                // 过滤器栏
                 <div class="flex gap-2 mb-4">
                     <input
-                        class="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-sm font-mono text-white focus:outline-none focus:border-blue-500"
-                        placeholder="Wireshark display filter: tcp, http, ip.addr==1.2.3.4..."
+                        class="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-sm font-mono text-white focus:outline-none focus:border-blue-500 placeholder-gray-500"
+                        placeholder="Wireshark 过滤器: tcp, http, ip.addr==1.2.3.4, tcp.port==443..."
                         prop:value=filter
                         on:input=move |ev| filter.set(event_target_value(&ev))
                         on:keydown=move |ev| {
@@ -127,29 +246,37 @@ pub fn CaptureDetailPage() -> impl IntoView {
                         }
                     />
                     <button
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                         on:click=move |_| load_packets()
                     >"应用过滤"</button>
                     <button
-                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm"
+                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                        on:click=move |_| {
+                            filter.set(String::new());
+                            load_packets();
+                        }
+                    >"清除"</button>
+                    <button
+                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                         on:click=move |_| on_download(capture_id_for_dl())
-                    >"下载 PCAP"</button>
+                    >"⬇ 下载 PCAP"</button>
                 </div>
 
                 {move || error.get().map(|e| view! {
                     <div class="bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm mb-4">{e}</div>
                 })}
 
-                <div class="flex gap-4 h-[calc(100vh-220px)]">
-                    // 数据包列表
-                    <div class="flex-1 bg-gray-900 border border-gray-700 rounded-xl overflow-auto">
+                // 主内容区：左列表 + 右详情
+                <div class="flex gap-4" style="height: calc(100vh - 200px)">
+                    // ── 左侧：数据包列表 ──────────────────────────────────────
+                    <div class="flex-1 bg-gray-900 border border-gray-700 rounded-xl overflow-auto min-w-0">
                         <table class="w-full text-xs">
-                            <thead class="sticky top-0 bg-gray-800 border-b border-gray-700">
+                            <thead class="sticky top-0 bg-gray-800 border-b border-gray-700 z-10">
                                 <tr>
                                     <th class="text-left px-3 py-2 text-gray-400 font-medium w-12">"No."</th>
-                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-28">"时间"</th>
-                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-32">"源地址"</th>
-                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-32">"目标地址"</th>
+                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-32">"时间 (s)"</th>
+                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-36">"源地址"</th>
+                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-36">"目标地址"</th>
                                     <th class="text-left px-3 py-2 text-gray-400 font-medium w-20">"协议"</th>
                                     <th class="text-left px-3 py-2 text-gray-400 font-medium w-16">"长度"</th>
                                     <th class="text-left px-3 py-2 text-gray-400 font-medium">"信息"</th>
@@ -159,39 +286,53 @@ pub fn CaptureDetailPage() -> impl IntoView {
                                 {move || {
                                     if loading.get() {
                                         view! {
-                                            <tr><td colspan="7" class="text-center py-8 text-gray-500">"加载中..."</td></tr>
+                                            <tr><td colspan="7" class="text-center py-12 text-gray-500">
+                                                <div class="flex flex-col items-center gap-2">
+                                                    <div class="text-2xl">"⏳"</div>
+                                                    <span>"加载中..."</span>
+                                                </div>
+                                            </td></tr>
                                         }.into_any()
                                     } else if packets.get().is_empty() {
                                         view! {
-                                            <tr><td colspan="7" class="text-center py-8 text-gray-500">"无数据包（可能需要 sharkd 支持）"</td></tr>
+                                            <tr><td colspan="7" class="text-center py-12 text-gray-500">
+                                                <div class="flex flex-col items-center gap-2">
+                                                    <div class="text-2xl">"📭"</div>
+                                                    <span>"无数据包"</span>
+                                                    <span class="text-xs text-gray-600">"请确认 sharkd 已安装（brew install wireshark）"</span>
+                                                </div>
+                                            </td></tr>
                                         }.into_any()
                                     } else {
                                         packets.get().into_iter().map(|p| {
                                             let no = p.number;
                                             let is_selected = selected.get().as_ref().map(|s| s.number == no).unwrap_or(false);
                                             let proto_color = match p.protocol.as_str() {
-                                                "TCP" => "text-blue-300",
-                                                "UDP" => "text-green-300",
-                                                "HTTP" | "HTTPS" => "text-orange-300",
-                                                "DNS" => "text-purple-300",
-                                                "ICMP" => "text-yellow-300",
+                                                "TCP"  => "text-blue-300",
+                                                "UDP"  => "text-green-300",
+                                                "HTTP" | "HTTPS" | "HTTP/2" => "text-orange-300",
+                                                "DNS"  => "text-purple-300",
+                                                "ICMP" | "ICMPv6" => "text-yellow-300",
+                                                "TLS" | "SSL"  => "text-teal-300",
+                                                "ARP"  => "text-pink-300",
                                                 _ => "text-gray-300",
+                                            };
+                                            let row_bg = if is_selected {
+                                                "bg-blue-900/60 cursor-pointer border-l-2 border-blue-500"
+                                            } else {
+                                                "hover:bg-gray-800/80 cursor-pointer border-l-2 border-transparent"
                                             };
                                             view! {
                                                 <tr
-                                                    class=move || if is_selected {
-                                                        "bg-blue-900/50 cursor-pointer"
-                                                    } else {
-                                                        "hover:bg-gray-800 cursor-pointer"
-                                                    }
+                                                    class=row_bg
                                                     on:click=move |_| on_select(no)
                                                 >
-                                                    <td class="px-3 py-1.5 text-gray-500">{p.number}</td>
-                                                    <td class="px-3 py-1.5 font-mono text-gray-400">{p.time}</td>
-                                                    <td class="px-3 py-1.5 font-mono">{p.source}</td>
-                                                    <td class="px-3 py-1.5 font-mono">{p.destination}</td>
-                                                    <td class=format!("px-3 py-1.5 font-medium {}", proto_color)>{p.protocol}</td>
-                                                    <td class="px-3 py-1.5 text-gray-400">{p.length}</td>
+                                                    <td class="px-3 py-1.5 text-gray-500 tabular-nums">{p.number}</td>
+                                                    <td class="px-3 py-1.5 font-mono text-gray-400 tabular-nums">{p.time}</td>
+                                                    <td class="px-3 py-1.5 font-mono text-gray-300">{p.source}</td>
+                                                    <td class="px-3 py-1.5 font-mono text-gray-300">{p.destination}</td>
+                                                    <td class=format!("px-3 py-1.5 font-medium font-mono {}", proto_color)>{p.protocol}</td>
+                                                    <td class="px-3 py-1.5 text-gray-400 tabular-nums">{p.length}</td>
                                                     <td class="px-3 py-1.5 text-gray-300 truncate max-w-xs">{p.info}</td>
                                                 </tr>
                                             }
@@ -202,29 +343,66 @@ pub fn CaptureDetailPage() -> impl IntoView {
                         </table>
                     </div>
 
-                    // 数据包详情面板
-                    <div class="w-96 bg-gray-900 border border-gray-700 rounded-xl overflow-auto p-4">
+                    // ── 右侧：详情面板 ───────────────────────────────────────
+                    <div class="w-[560px] shrink-0 flex flex-col gap-3 overflow-auto">
                         {move || match selected.get() {
                             None => view! {
-                                <div class="text-center text-gray-500 mt-12">
-                                    <div class="text-3xl mb-2">"🔍"</div>
-                                    <p class="text-sm">"点击数据包查看详情"</p>
+                                <div class="flex-1 bg-gray-900 border border-gray-700 rounded-xl flex flex-col items-center justify-center text-gray-500 h-full">
+                                    <div class="text-5xl mb-3">"🔍"</div>
+                                    <p class="text-sm font-medium">"点击左侧数据包查看详情"</p>
+                                    <p class="text-xs text-gray-600 mt-1">"可查看协议树和原始字节"</p>
                                 </div>
                             }.into_any(),
                             Some(detail) => view! {
-                                <div>
-                                    <h3 class="font-medium mb-3">"数据包 #"{detail.number}</h3>
-                                    <div class="mb-4">
-                                        <p class="text-xs text-gray-400 mb-2">"协议树"</p>
-                                        <pre class="text-xs font-mono text-gray-300 bg-gray-800 rounded p-2 overflow-auto max-h-64">
-                                            {serde_json::to_string_pretty(&detail.layers).unwrap_or_default()}
-                                        </pre>
+                                <div class="flex flex-col gap-3 h-full">
+                                    // 包头信息
+                                    <div class="bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 flex items-center gap-3">
+                                        <span class="text-blue-400 font-bold text-lg">"#"{detail.number}</span>
+                                        <span class="text-xs text-gray-500">"数据包详情"</span>
                                     </div>
-                                    <div>
-                                        <p class="text-xs text-gray-400 mb-2">"原始数据 (Hex)"</p>
-                                        <pre class="text-xs font-mono text-green-400 bg-gray-800 rounded p-2 overflow-auto max-h-48">
-                                            {detail.raw}
-                                        </pre>
+
+                                    // 协议树
+                                    <div class="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden flex flex-col" style="flex: 1 1 0; min-height: 200px">
+                                        <div class="px-4 py-2 bg-gray-800 border-b border-gray-700 flex items-center gap-2">
+                                            <span class="text-xs font-semibold text-gray-300 uppercase tracking-wide">"协议树"</span>
+                                            <span class="text-xs text-gray-600">"(Protocol Tree)"</span>
+                                        </div>
+                                        <div class="overflow-auto flex-1 p-3">
+                                            {
+                                                let tree_text = render_tree(&detail.layers, 0);
+                                                if tree_text.is_empty() {
+                                                    view! {
+                                                        <pre class="text-xs font-mono text-gray-500">"（无协议树数据）"</pre>
+                                                    }.into_any()
+                                                } else {
+                                                    view! {
+                                                        <pre class="text-xs font-mono text-green-300 leading-relaxed whitespace-pre-wrap">{tree_text}</pre>
+                                                    }.into_any()
+                                                }
+                                            }
+                                        </div>
+                                    </div>
+
+                                    // 原始字节
+                                    <div class="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden flex flex-col" style="flex: 0 0 auto; max-height: 280px">
+                                        <div class="px-4 py-2 bg-gray-800 border-b border-gray-700 flex items-center gap-2">
+                                            <span class="text-xs font-semibold text-gray-300 uppercase tracking-wide">"原始字节"</span>
+                                            <span class="text-xs text-gray-600">"(Raw Bytes / Hex Dump)"</span>
+                                        </div>
+                                        <div class="overflow-auto p-3">
+                                            {
+                                                let hex_dump = format_hex_dump(&detail.raw);
+                                                if hex_dump.is_empty() {
+                                                    view! {
+                                                        <pre class="text-xs font-mono text-gray-500">"（无字节数据）"</pre>
+                                                    }.into_any()
+                                                } else {
+                                                    view! {
+                                                        <pre class="text-xs font-mono text-blue-300 leading-relaxed">{hex_dump}</pre>
+                                                    }.into_any()
+                                                }
+                                            }
+                                        </div>
                                     </div>
                                 </div>
                             }.into_any(),
