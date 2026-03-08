@@ -56,7 +56,9 @@ pub fn KeysPage() -> impl IntoView {
         }
     });
 
-    let keys      = RwSignal::new(Vec::<SshKey>::new());
+    let keys       = RwSignal::new(Vec::<SshKey>::new());
+    let page       = RwSignal::new(1usize);
+    const PAGE_SIZE: usize = 10;
     let show_modal = RwSignal::new(false);
     let error     = RwSignal::new(Option::<String>::None);
     let success   = RwSignal::new(Option::<String>::None);
@@ -68,6 +70,7 @@ pub fn KeysPage() -> impl IntoView {
         leptos::task::spawn_local(async move {
             if let Ok(list) = crate::api::get::<Vec<SshKey>>("/api/keys").await {
                 keys.set(list);
+                page.set(1);
             }
         });
     };
@@ -159,7 +162,10 @@ pub fn KeysPage() -> impl IntoView {
 
                 // 密钥列表
                 <div class="space-y-3">
-                    {move || keys.get().into_iter().map(|key| {
+                    {move || {
+                        let all = keys.get();
+                        let start = (page.get() - 1) * PAGE_SIZE;
+                        all.into_iter().skip(start).take(PAGE_SIZE).map(|key| {
                         let id           = key.id.clone();
                         let on_del       = on_delete.clone();
                         let key_for_view = key.clone();
@@ -188,7 +194,8 @@ pub fn KeysPage() -> impl IntoView {
                                 </div>
                             </div>
                         }
-                    }).collect::<Vec<_>>()}
+                        }).collect::<Vec<_>>()
+                    }}
 
                     {move || keys.get().is_empty().then(|| view! {
                         <div class="text-center py-12 text-gray-500">
@@ -196,6 +203,33 @@ pub fn KeysPage() -> impl IntoView {
                             <p>"还没有 SSH 密钥，点击右上角添加"</p>
                         </div>
                     })}
+
+                    // 分页栏
+                    {move || {
+                        let total = (keys.get().len() + PAGE_SIZE - 1) / PAGE_SIZE;
+                        if total <= 1 {
+                            view! { <div/> }.into_any()
+                        } else {
+                            let total2 = total;
+                            view! {
+                                <div class="flex items-center justify-between mt-4 text-sm text-gray-400">
+                                    <button
+                                        class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        disabled=move || page.get() <= 1
+                                        on:click=move |_| page.update(|p| *p = p.saturating_sub(1))
+                                    >"← 上一页"</button>
+                                    <span class="text-gray-500">
+                                        "第 " {move || page.get()} " / " {total2} " 页"
+                                    </span>
+                                    <button
+                                        class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        disabled=move || page.get() >= total2
+                                        on:click=move |_| page.update(|p| if *p < total2 { *p += 1 })
+                                    >"下一页 →"</button>
+                                </div>
+                            }.into_any()
+                        }
+                    }}
                 </div>
             </div>
 

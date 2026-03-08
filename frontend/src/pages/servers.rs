@@ -64,6 +64,8 @@ pub fn ServersPage() -> impl IntoView {
     });
 
     let servers     = RwSignal::new(Vec::<Server>::new());
+    let page        = RwSignal::new(1usize);
+    const PAGE_SIZE: usize = 10;
     let keys        = RwSignal::new(Vec::<SshKey>::new());
     let show_modal  = RwSignal::new(false);
     let testing_id  = RwSignal::new(Option::<String>::None);
@@ -91,6 +93,7 @@ pub fn ServersPage() -> impl IntoView {
         leptos::task::spawn_local(async move {
             if let Ok(list) = crate::api::get::<Vec<Server>>("/api/servers").await {
                 servers.set(list);
+                page.set(1);
             }
         });
     };
@@ -320,7 +323,10 @@ pub fn ServersPage() -> impl IntoView {
 
                 // 服务器列表
                 <div class="space-y-3">
-                    {move || servers.get().into_iter().map(|server| {
+                    {move || {
+                        let all = servers.get();
+                        let start = (page.get() - 1) * PAGE_SIZE;
+                        all.into_iter().skip(start).take(PAGE_SIZE).map(|server| {
                         let id_dis    = server.id.clone();
                         let id_label  = server.id.clone();
                         let id_test   = server.id.clone();
@@ -374,7 +380,8 @@ pub fn ServersPage() -> impl IntoView {
                                 </div>
                             </div>
                         }
-                    }).collect::<Vec<_>>()}
+                        }).collect::<Vec<_>>()
+                    }}
 
                     {move || servers.get().is_empty().then(|| view! {
                         <div class="text-center py-12 text-gray-500">
@@ -382,6 +389,33 @@ pub fn ServersPage() -> impl IntoView {
                             <p>"还没有服务器，点击右上角添加"</p>
                         </div>
                     })}
+
+                    // 分页栏
+                    {move || {
+                        let total = (servers.get().len() + PAGE_SIZE - 1) / PAGE_SIZE;
+                        if total <= 1 {
+                            view! { <div/> }.into_any()
+                        } else {
+                            let total2 = total;
+                            view! {
+                                <div class="flex items-center justify-between mt-4 text-sm text-gray-400">
+                                    <button
+                                        class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        disabled=move || page.get() <= 1
+                                        on:click=move |_| page.update(|p| *p = p.saturating_sub(1))
+                                    >"← 上一页"</button>
+                                    <span class="text-gray-500">
+                                        "第 " {move || page.get()} " / " {total2} " 页"
+                                    </span>
+                                    <button
+                                        class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        disabled=move || page.get() >= total2
+                                        on:click=move |_| page.update(|p| if *p < total2 { *p += 1 })
+                                    >"下一页 →"</button>
+                                </div>
+                            }.into_any()
+                        }
+                    }}
                 </div>
             </div>
 
