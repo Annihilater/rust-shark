@@ -12,41 +12,68 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # ─── 第一步：下载真实的 tcpdump/sharkd 二进制 ──────────────────────────────────
+  # ─── 第一步：准备 tcpdump/sharkd 二进制 ───────────────────────────────────────
   prepare-binaries:
     name: 准备第三方二进制
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 下载 tcpdump 静态二进制 (amd64)
+      - name: 设置 QEMU（为 arm64 容器做准备）
+        uses: docker/setup-qemu-action@v3
+
+      - name: 提取 tcpdump (amd64) — 直接从 runner apt 安装
         run: |
-          # 使用预编译的静态 tcpdump
-          wget -q "https://github.com/nicowillis/static-tcpdump/releases/latest/download/tcpdump-linux-x86_64" \
-            -O assets/binaries/tcpdump-linux-amd64 || \
-          # 备选方案：从 debian 包中提取
-          (docker run --rm -v $PWD/assets/binaries:/out debian:bookworm \
-            bash -c "apt-get update -qq && apt-get install -y tcpdump && cp /usr/sbin/tcpdump /out/tcpdump-linux-amd64")
+          sudo apt-get update -qq
+          sudo apt-get install -y tcpdump
+          # runner 本身是 amd64，直接复制
+          TCPDUMP_PATH=$(command -v tcpdump)
+          echo "tcpdump path: $TCPDUMP_PATH"
+          cp "$TCPDUMP_PATH" assets/binaries/tcpdump-linux-amd64
           chmod +x assets/binaries/tcpdump-linux-amd64
           file assets/binaries/tcpdump-linux-amd64
 
-      - name: 下载 tcpdump 静态二进制 (arm64)
+      - name: 提取 tcpdump (arm64) — 通过 arm64 容器
         run: |
-          docker run --rm --platform linux/arm64 -v $PWD/assets/binaries:/out debian:bookworm \
-            bash -c "apt-get update -qq && apt-get install -y tcpdump && cp /usr/sbin/tcpdump /out/tcpdump-linux-arm64"
-          chmod +x assets/binaries/tcpdump-linux-arm64
+          docker run --rm --platform linux/arm64 \
+            -v "$PWD/assets/binaries:/out" \
+            debian:bookworm \
+            bash -c "
+              apt-get update -qq && \
+              apt-get install -y --no-install-recommends tcpdump && \
+              cp /usr/bin/tcpdump /out/tcpdump-linux-arm64 && \
+              chmod +x /out/tcpdump-linux-arm64
+            "
+          file assets/binaries/tcpdump-linux-arm64
 
-      - name: 下载 sharkd 二进制 (amd64)
+      - name: 提取 sharkd (amd64) — 直接从 runner apt 安装
         run: |
-          docker run --rm -v $PWD/assets/binaries:/out debian:bookworm \
-            bash -c "apt-get update -qq && apt-get install -y wireshark-common && cp /usr/bin/sharkd /out/sharkd-linux-amd64 2>/dev/null || echo 'sharkd not found, using placeholder' && touch /out/sharkd-linux-amd64"
+          sudo apt-get install -y wireshark-common || true
+          if command -v sharkd &>/dev/null; then
+            cp "$(command -v sharkd)" assets/binaries/sharkd-linux-amd64
+          else
+            echo "⚠ sharkd not found on runner, using empty placeholder"
+            touch assets/binaries/sharkd-linux-amd64
+          fi
           chmod +x assets/binaries/sharkd-linux-amd64
 
-      - name: 下载 sharkd 二进制 (arm64)
+      - name: 提取 sharkd (arm64) — 通过 arm64 容器
         run: |
-          docker run --rm --platform linux/arm64 -v $PWD/assets/binaries:/out debian:bookworm \
-            bash -c "apt-get update -qq && apt-get install -y wireshark-common && cp /usr/bin/sharkd /out/sharkd-linux-arm64 2>/dev/null || echo 'sharkd not found, using placeholder' && touch /out/sharkd-linux-arm64"
-          chmod +x assets/binaries/sharkd-linux-arm64
+          docker run --rm --platform linux/arm64 \
+            -v "$PWD/assets/binaries:/out" \
+            debian:bookworm \
+            bash -c "
+              apt-get update -qq && \
+              apt-get install -y --no-install-recommends wireshark-common && \
+              if [ -f /usr/bin/sharkd ]; then
+                cp /usr/bin/sharkd /out/sharkd-linux-arm64 && chmod +x /out/sharkd-linux-arm64
+              else
+                echo 'sharkd not found, placeholder' && touch /out/sharkd-linux-arm64
+              fi
+            "
+
+      - name: 列出产物
+        run: ls -lh assets/binaries/
 
       - name: 上传二进制文件
         uses: actions/upload-artifact@v4
