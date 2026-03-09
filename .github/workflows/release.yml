@@ -14,27 +14,63 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # ─── 前置条件：等待 CI 在同一 tag commit 上全部通过 ────────────────────────
-  # 防止直接打 tag 绕过质量门禁就发布
+  # ─── 前置条件：等待同一 commit 上的 CI workflow 全部通过 ────────────────────
+  # 使用 gh CLI 原生轮询，无第三方 action 依赖，零启动开销
+  # 防止直接打 tag 绕过质量门禁发布
   ci-gate:
     name: 等待 CI 质量门禁
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
     steps:
-      - name: 等待 CI workflow 完成
-        uses: lewagon/wait-on-check-action@v1.3.4
-        with:
-          ref: ${{ github.sha }}
-          check-name: "代码检查 (fmt + clippy)"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 20
+      - name: 等待 CI workflow（check + test）全部通过
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA="${{ github.sha }}"
+          REPO="${{ github.repository }}"
+          TIMEOUT=1200   # 最多等待 20 分钟
+          INTERVAL=20    # 每 20 秒轮询一次
+          ELAPSED=0
 
-      - name: 等待单元测试通过
-        uses: lewagon/wait-on-check-action@v1.3.4
-        with:
-          ref: ${{ github.sha }}
-          check-name: "单元测试"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 20
+          echo "等待 commit ${SHA} 上的 CI workflow 完成..."
+
+          while true; do
+            # 查询当前 commit 上名为 "CI" 的 workflow run
+            STATUS=$(gh api \
+              "repos/${REPO}/commits/${SHA}/check-runs" \
+              --jq '[.check_runs[] | select(.name == "代码检查 (fmt + clippy)" or .name == "单元测试")]
+                    | if length == 0 then "pending"
+                      elif all(.status == "completed") then
+                        if all(.conclusion == "success") then "success"
+                        else "failure"
+                        end
+                      else "in_progress"
+                      end' 2>/dev/null || echo "pending")
+
+            echo "[${ELAPSED}s] CI 状态: ${STATUS}"
+
+            case "$STATUS" in
+              success)
+                echo "✓ CI 全部通过，继续发布流程"
+                exit 0
+                ;;
+              failure)
+                echo "✗ CI 存在失败，取消发布"
+                gh api "repos/${REPO}/commits/${SHA}/check-runs" \
+                  --jq '.check_runs[] | select(.name == "代码检查 (fmt + clippy)" or .name == "单元测试") | "\(.name): \(.conclusion)"'
+                exit 1
+                ;;
+              *)
+                if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+                  echo "✗ 等待超时（${TIMEOUT}s），取消发布"
+                  exit 1
+                fi
+                sleep "$INTERVAL"
+                ELAPSED=$((ELAPSED + INTERVAL))
+                ;;
+            esac
+          done
 
   # ─── 第一步：准备第三方二进制（tcpdump + sharkd）────────────────────────────
   prepare-binaries:
