@@ -462,7 +462,7 @@ pub fn AnalysisPage() -> impl IntoView {
                                                                 <div class="flex flex-col items-center gap-2">
                                                                     <div class="text-2xl">"📭"</div>
                                                                     <span>"无数据包"</span>
-                                                                    <span class="text-xs text-gray-600">"请确认 sharkd 已安装（brew install wireshark）"</span>
+                                                                    <span class="text-xs text-gray-600">"该文件中没有数据包，或过滤器无匹配结果"</span>
                                                                 </div>
                                                             </td></tr>
                                                         }.into_any()

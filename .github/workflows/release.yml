@@ -89,7 +89,10 @@ jobs:
       - name: 预拉取 debian:bookworm 镜像（加速后续 arm64 容器）
         run: docker pull debian:bookworm &
 
-      - name: 提取 tcpdump amd64（从 runner 直接安装）
+      - name: 提取 tcpdump + sharkd amd64（从 runner 直接安装）
+        env:
+          # 避免 wireshark-common 安装时弹出交互式 debconf 提示（会导致 CI 挂起）
+          DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y tcpdump wireshark-common
@@ -97,15 +100,14 @@ jobs:
           chmod +x assets/binaries/tcpdump-linux-amd64
           file assets/binaries/tcpdump-linux-amd64
 
-      - name: 提取 sharkd amd64
-        run: |
+          # sharkd 由 wireshark-common 提供，路径为 /usr/bin/sharkd
           if command -v sharkd &>/dev/null; then
             cp "$(command -v sharkd)" assets/binaries/sharkd-linux-amd64
+            chmod +x assets/binaries/sharkd-linux-amd64
+            echo "✓ sharkd amd64 已提取：$(file assets/binaries/sharkd-linux-amd64)"
           else
-            echo "⚠ sharkd not found, using placeholder"
-            touch assets/binaries/sharkd-linux-amd64
+            echo "❌ sharkd not found after installing wireshark-common" && exit 1
           fi
-          chmod +x assets/binaries/sharkd-linux-amd64
 
       # 等待预拉取完成，再启动 arm64 容器
       - name: 等待镜像预拉取完成
@@ -128,19 +130,30 @@ jobs:
         run: |
           docker run --rm --platform linux/arm64 \
             -v "$PWD/assets/binaries:/out" \
+            -e DEBIAN_FRONTEND=noninteractive \
             debian:bookworm \
             bash -c "
               apt-get update -qq &&
               apt-get install -y --no-install-recommends wireshark-common &&
               if [ -f /usr/bin/sharkd ]; then
                 cp /usr/bin/sharkd /out/sharkd-linux-arm64 && chmod +x /out/sharkd-linux-arm64
+                echo 'sharkd arm64 提取完成'
               else
-                touch /out/sharkd-linux-arm64
+                echo '❌ sharkd not found in arm64 container' && exit 1
               fi
             "
 
-      - name: 列出产物
-        run: ls -lh assets/binaries/
+      - name: 列出并验证产物
+        run: |
+          ls -lh assets/binaries/
+          # 确保所有二进制都不是空文件
+          for f in assets/binaries/*; do
+            size=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")
+            if [ "$size" -lt 1024 ]; then
+              echo "❌ $f 太小（${size}字节），可能是占位符！" && exit 1
+            fi
+            echo "✓ $f (${size} bytes)"
+          done
 
       - name: 上传第三方二进制
         uses: actions/upload-artifact@v4
