@@ -12,6 +12,8 @@ env:
   CARGO_TERM_COLOR: always
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  # cross 版本固定，用于缓存 key
+  CROSS_VERSION: "0.2.5"
 
 jobs:
   # ─── 前置条件：等待同一 commit 上的 CI workflow 全部通过 ────────────────────
@@ -83,13 +85,31 @@ jobs:
       - name: 设置 QEMU（为 arm64 容器做准备）
         uses: docker/setup-qemu-action@v3
 
+      # 预先并行拉取镜像，避免后续步骤串行等待拉取
+      - name: 预拉取 debian:bookworm 镜像（加速后续 arm64 容器）
+        run: docker pull debian:bookworm &
+
       - name: 提取 tcpdump amd64（从 runner 直接安装）
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y tcpdump
+          sudo apt-get install -y tcpdump wireshark-common
           cp "$(command -v tcpdump)" assets/binaries/tcpdump-linux-amd64
           chmod +x assets/binaries/tcpdump-linux-amd64
           file assets/binaries/tcpdump-linux-amd64
+
+      - name: 提取 sharkd amd64
+        run: |
+          if command -v sharkd &>/dev/null; then
+            cp "$(command -v sharkd)" assets/binaries/sharkd-linux-amd64
+          else
+            echo "⚠ sharkd not found, using placeholder"
+            touch assets/binaries/sharkd-linux-amd64
+          fi
+          chmod +x assets/binaries/sharkd-linux-amd64
+
+      # 等待预拉取完成，再启动 arm64 容器
+      - name: 等待镜像预拉取完成
+        run: wait
 
       - name: 提取 tcpdump arm64（通过 arm64 容器）
         run: |
@@ -103,17 +123,6 @@ jobs:
               chmod +x /out/tcpdump-linux-arm64
             "
           file assets/binaries/tcpdump-linux-arm64
-
-      - name: 提取 sharkd amd64
-        run: |
-          sudo apt-get install -y wireshark-common || true
-          if command -v sharkd &>/dev/null; then
-            cp "$(command -v sharkd)" assets/binaries/sharkd-linux-amd64
-          else
-            echo "⚠ sharkd not found, using placeholder"
-            touch assets/binaries/sharkd-linux-amd64
-          fi
-          chmod +x assets/binaries/sharkd-linux-amd64
 
       - name: 提取 sharkd arm64
         run: |
@@ -215,8 +224,17 @@ jobs:
         with:
           key: release-backend-${{ matrix.target }}
 
-      - name: 安装 cross
-        run: cargo install cross --locked
+      # ── cross 二进制缓存（避免每次 cargo install 耗费 2-3 分钟）───────────
+      - name: 缓存 cross 可执行文件
+        id: cache-cross
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cross
+          key: cross-bin-${{ env.CROSS_VERSION }}-linux
+
+      - name: 安装 cross（缓存未命中时）
+        if: steps.cache-cross.outputs.cache-hit != 'true'
+        run: cargo install cross --version ${{ env.CROSS_VERSION }} --locked
 
       - name: 交叉编译后端
         run: |
@@ -354,6 +372,8 @@ jobs:
           retention-days: 7
 
   # ─── 第四步：构建并推送多架构 Docker 镜像 ───────────────────────────────────
+  # 注意：Docker 构建（尤其 arm64 QEMU 模拟）耗时较长，与 release 发布解耦
+  # release job 不等待 Docker，二者并行；Docker 失败不阻塞 GitHub Release 发布
   build-docker:
     name: 构建 Docker 镜像
     needs: [prepare-binaries, build-frontend]
@@ -415,11 +435,10 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ─── 第五步：创建 GitHub Release ────────────────────────────────────────────
+  # 仅等待 build-backend，不等待 build-docker（Docker 构建耗时长，单独异步完成）
   release:
     name: 发布 GitHub Release
-    needs: [build-backend, build-docker]
-    # 即使 Docker 构建失败也发布二进制（Docker 失败不阻塞 Release）
-    if: always() && needs.build-backend.result == 'success'
+    needs: build-backend
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -457,27 +476,6 @@ jobs:
             CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges | head -20)
           fi
 
-          DOCKER_STATUS="${{ needs.build-docker.result }}"
-          DOCKER_NOTE=""
-          if [ "$DOCKER_STATUS" = "success" ]; then
-            DOCKER_NOTE=$(cat << 'DOCKEREOF'
-
-          ### Docker
-
-          ```bash
-          docker pull ghcr.io/${{ github.repository }}:${VERSION}
-
-          # 使用 .env 文件启动
-          docker run -d --name rust-shark \
-            -p 17823:17823 \
-            -v ./data:/app/data \
-            --env-file .env \
-            ghcr.io/${{ github.repository }}:${VERSION}
-          ```
-          DOCKEREOF
-          )
-          fi
-
           cat > release_notes.md << NOTESEOF
           ## rust-shark ${VERSION}
 
@@ -489,6 +487,8 @@ jobs:
           | Linux ARM64  | \`rust-shark-deploy-${VERSION}-linux-arm64.tar.gz\`  | \`rust-shark-linux-arm64\`  |
 
           > 完整部署包内含：二进制 + 配置模板 + Docker Compose + 运维脚本 + 部署文档
+
+          > Docker 镜像正在异步构建中，稍后可用：\`ghcr.io/${{ github.repository }}:${VERSION}\`
 
           ### 快速部署
 
@@ -507,7 +507,6 @@ jobs:
           # 方式二：Docker Compose
           ./start.sh
           \`\`\`
-          ${DOCKER_NOTE}
 
           ### 变更内容
 

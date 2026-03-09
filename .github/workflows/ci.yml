@@ -102,8 +102,7 @@ jobs:
         with:
           key: build-${{ matrix.name }}
 
-      - name: 安装 trunk（仅前端）
-        if: contains(matrix.name, 'frontend')
+      - name: 安装 trunk
         uses: jetli/trunk-action@v0.5.0
 
       - name: 创建第三方二进制占位符（native 构建需要）
@@ -116,10 +115,7 @@ jobs:
 
       - name: 构建前端（backend 构建依赖前端产物）
         if: matrix.needs_frontend == true
-        run: |
-          rustup target add wasm32-unknown-unknown
-          cargo install --locked trunk
-          cd frontend && trunk build --release
+        run: cd frontend && trunk build --release
 
       - name: 执行构建
         run: ${{ matrix.cmd }}
