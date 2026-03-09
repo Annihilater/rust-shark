@@ -1,23 +1,34 @@
 name: CI
 
+# ── 触发条件 ───────────────────────────────────────────────────────────────────
+# 1. PR 提交时：在合并前守门，必须全绿
+# 2. push 到 master：确认集成后代码仍然健康
+# 3. push tag：release 前做最后一次质量验证（release.yml 通过 needs 等待此结果）
 on:
-  push:
-    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [master]
+  push:
+    branches: [master]
+    tags: ["v*.*.*"]
+
+# 同一 PR/分支的新 push 自动取消旧的运行，节省 runner 资源
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_LOG: debug
+  RUST_LOG: info
 
 jobs:
+  # ─── 代码质量检查（格式 + Clippy）──────────────────────────────────────────
   check:
-    name: 代码检查
+    name: 代码检查 (fmt + clippy)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 安装 Rust
+      - name: 安装 Rust stable（含 rustfmt + clippy）
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -25,26 +36,31 @@ jobs:
 
       - name: 缓存 Cargo 依赖
         uses: Swatinem/rust-cache@v2
+        with:
+          key: check
 
       - name: 格式化检查
         run: cargo fmt --all -- --check
 
-      - name: Clippy 检查
+      - name: Clippy 检查（视 warning 为 error）
         run: cargo clippy --all-targets --all-features -- -D warnings
 
+  # ─── 单元测试 ──────────────────────────────────────────────────────────────
   test:
     name: 单元测试
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 安装 Rust
+      - name: 安装 Rust stable
         uses: dtolnay/rust-toolchain@stable
 
       - name: 缓存 Cargo 依赖
         uses: Swatinem/rust-cache@v2
+        with:
+          key: test
 
-      - name: 安装占位符二进制
+      - name: 创建第三方二进制占位符（测试不需要真实文件）
         run: |
           touch assets/binaries/tcpdump-linux-amd64
           touch assets/binaries/tcpdump-linux-arm64
@@ -54,29 +70,56 @@ jobs:
       - name: 运行测试
         run: cargo test --all
 
-  build-frontend:
-    name: 构建前端 WASM
+  # ─── 构建验证（仅在 push/tag 时运行，PR 不做全量构建节省时间）──────────────
+  # 目的：确认代码能完整构建成功，避免 release 时才暴露构建问题
+  build-check:
+    name: 构建验证 (${{ matrix.name }})
+    # PR 时跳过，只在 push master 和 push tag 时运行
+    if: github.event_name == 'push'
+    needs: [check, test]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend (native)
+            cmd: cargo build --release --manifest-path backend/Cargo.toml
+            needs_frontend: true
+          - name: frontend (wasm)
+            cmd: cd frontend && trunk build --release
+            needs_frontend: false
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: 安装 Rust
+      - name: 安装 Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
 
       - name: 缓存 Cargo 依赖
         uses: Swatinem/rust-cache@v2
+        with:
+          key: build-${{ matrix.name }}
 
-      - name: 安装 trunk
+      - name: 安装 trunk（仅前端）
+        if: contains(matrix.name, 'frontend')
         uses: jetli/trunk-action@v0.5.0
 
-      - name: 构建前端
-        run: cd frontend && trunk build --release
+      - name: 创建第三方二进制占位符（native 构建需要）
+        if: matrix.needs_frontend == false
+        run: |
+          touch assets/binaries/tcpdump-linux-amd64
+          touch assets/binaries/tcpdump-linux-arm64
+          touch assets/binaries/sharkd-linux-amd64
+          touch assets/binaries/sharkd-linux-arm64
 
-      - name: 上传前端产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist/
-          retention-days: 1
+      - name: 构建前端（backend 构建依赖前端产物）
+        if: matrix.needs_frontend == true
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install --locked trunk
+          cd frontend && trunk build --release
+
+      - name: 执行构建
+        run: ${{ matrix.cmd }}
