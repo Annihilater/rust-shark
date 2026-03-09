@@ -1,0 +1,59 @@
+name: Security Audit
+
+# ── 触发条件 ───────────────────────────────────────────────────────────────────
+# 1. 每周一 UTC 02:00 定期扫描（覆盖新披露的 CVE）
+# 2. Cargo.lock 发生变更时立即扫描（依赖更新后守门）
+on:
+  schedule:
+    - cron: "0 2 * * 1"  # 每周一 02:00 UTC
+  push:
+    paths:
+      - "**/Cargo.lock"
+      - "**/Cargo.toml"
+  workflow_dispatch:  # 支持手动触发
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Cargo 依赖安全审计（RustSec Advisory Database）─────────────────────────
+  audit:
+    name: 依赖安全审计
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 运行 cargo-audit
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── 依赖许可证合规检查 ──────────────────────────────────────────────────────
+  deny:
+    name: 依赖许可证检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 Cargo 依赖
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: deny
+
+      - name: 创建第三方二进制占位符
+        run: |
+          touch assets/binaries/tcpdump-linux-amd64
+          touch assets/binaries/tcpdump-linux-arm64
+          touch assets/binaries/sharkd-linux-amd64
+          touch assets/binaries/sharkd-linux-arm64
+
+      - name: 安装 cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: 检查许可证与依赖
+        # 仅检查许可证合规，不强制拦截（生成报告供参考）
+        run: cargo deny check licenses --allow-wildcards || true
