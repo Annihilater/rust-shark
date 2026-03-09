@@ -283,10 +283,22 @@ jobs:
           sed "s|ghcr.io/annihilater/rust-shark:latest|ghcr.io/annihilater/rust-shark:${VERSION#v}|g" \
             deploy/docker-compose.yml > "${DEPLOY_NAME}/docker-compose.yml"
 
-          # 运维脚本
+          # 运维脚本（Docker Compose 方式）
           for script in common start stop restart logs status; do
             cp "deploy/${script}.sh" "${DEPLOY_NAME}/${script}.sh"
           done
+
+          # 生成 run.sh：直接运行二进制的包装脚本
+          # 关键：自动 cd 到脚本所在目录，确保相对路径（data/、DATABASE_URL）正确解析
+          cat > "${DEPLOY_NAME}/run.sh" << 'RUNEOF'
+          #!/usr/bin/env bash
+          set -e
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          cd "$SCRIPT_DIR"
+          mkdir -p data/captures
+          exec "$SCRIPT_DIR/rust-shark"
+          RUNEOF
+
           chmod +x "${DEPLOY_NAME}"/*.sh
 
           # 生成部署指南 README
@@ -299,14 +311,15 @@ jobs:
           \`\`\`
           ${DEPLOY_NAME}/
           ├── rust-shark            # 主程序（静态链接，无运行时依赖）
+          ├── run.sh                # 直接运行二进制的启动脚本（推荐用此脚本而非直接执行 ./rust-shark）
           ├── .env.example          # 配置模板 → 复制为 .env 后修改
           ├── docker-compose.yml    # Docker Compose 部署配置
           ├── common.sh             # 公共函数（被其他脚本引用）
-          ├── start.sh              # 启动服务
-          ├── stop.sh               # 停止服务
-          ├── restart.sh            # 重启服务
-          ├── logs.sh               # 实时查看日志
-          ├── status.sh             # 查看容器状态
+          ├── start.sh              # Docker 方式：拉取镜像并启动容器
+          ├── stop.sh               # Docker 方式：停止容器
+          ├── restart.sh            # Docker 方式：重启容器
+          ├── logs.sh               # Docker 方式：实时查看日志
+          ├── status.sh             # Docker 方式：查看容器状态
           └── README.md             # 本文件
           \`\`\`
 
@@ -314,23 +327,27 @@ jobs:
 
           ## 快速开始
 
-          ### 方式一：直接运行（最简单）
+          ### 方式一：直接运行（无需 Docker）
 
           \`\`\`bash
           # 1. 复制并编辑配置（务必修改 SECRET_KEY、JWT_SECRET、ADMIN_PASSWORD）
           cp .env.example .env && vim .env
 
-          # 2. 启动
-          chmod +x rust-shark && ./rust-shark
+          # 2. 启动（必须使用 run.sh，不要直接 ./rust-shark）
+          ./run.sh
           \`\`\`
+
+          > ⚠️ **必须用 \`./run.sh\` 启动**，不要直接执行 \`./rust-shark\`。
+          > \`run.sh\` 会自动切换到部署包目录，确保数据库路径（\`data/rust-shark.db\`）正确。
+          > 直接在其他目录执行 \`./rust-shark\` 会因找不到 \`data/\` 目录而报错。
 
           访问：**http://\<IP\>:\<PORT\>**（默认端口 17823）
 
-          ### 方式二：Docker Compose
+          ### 方式二：Docker Compose（推荐生产环境）
 
           \`\`\`bash
           cp .env.example .env && vim .env
-          ./start.sh          # 启动
+          ./start.sh          # 拉取最新镜像并启动
           ./logs.sh           # 查看日志（Ctrl+C 退出）
           ./restart.sh        # 重启
           ./stop.sh           # 停止
