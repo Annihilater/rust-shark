@@ -34,6 +34,7 @@ pub struct CreateCaptureRequest {
     pub repeat_until: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaptureStatus {
     pub status: String,
@@ -43,6 +44,7 @@ pub struct CaptureStatus {
 }
 
 impl CaptureTask {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         user_id: String,
         server_id: String,

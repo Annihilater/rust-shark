@@ -17,6 +17,7 @@ struct Server {
     auth_type: String,
     status: String,
     ssh_key_id: Option<String>,
+    #[allow(dead_code)]
     created_at: String,
 }
 
@@ -41,13 +42,16 @@ struct ServerPayload {
 struct TestResult {
     success: bool,
     message: String,
+    #[allow(dead_code)]
     tcpdump_available: bool,
     tcpdump_version: Option<String>,
+    #[allow(dead_code)]
     interfaces: Vec<Interface>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
 struct Interface {
+    #[allow(dead_code)]
     name: String,
 }
 
@@ -427,7 +431,7 @@ pub fn ServersPage() -> impl IntoView {
 
                     // 分页栏
                     {move || {
-                        let total = (servers.get().len() + PAGE_SIZE - 1) / PAGE_SIZE;
+                        let total = servers.get().len().div_ceil(PAGE_SIZE);
                         if total <= 1 {
                             view! { <div/> }.into_any()
                         } else {

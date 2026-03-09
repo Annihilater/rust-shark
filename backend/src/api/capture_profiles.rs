@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    routing::{delete, get, post, put},
+    routing::get,
     Extension, Json, Router,
 };
 
@@ -99,8 +99,8 @@ async fn create_profile(
     .bind(&profile.server_id)
     .bind(&profile.interface)
     .bind(&profile.filter)
-    .bind(&profile.duration)
-    .bind(&profile.packet_limit)
+    .bind(profile.duration)
+    .bind(profile.packet_limit)
     .bind(&profile.created_at)
     .bind(&profile.updated_at)
     .execute(&state.pool)

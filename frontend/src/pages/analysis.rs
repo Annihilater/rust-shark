@@ -188,19 +188,16 @@ pub fn AnalysisPage() -> impl IntoView {
 
     // ── Load captures on mount ────────────────────────────────────────────────
     leptos::task::spawn_local(async move {
-        match crate::api::get::<Vec<CaptureTask>>("/api/captures").await {
-            Ok(mut list) => {
-                // Filter to only "done" captures
-                list.retain(|c| c.status == "done");
-                // Sort by finished_at descending (most recent first)
-                list.sort_by(|a, b| {
-                    let fa = a.finished_at.as_deref().unwrap_or("");
-                    let fb = b.finished_at.as_deref().unwrap_or("");
-                    fb.cmp(fa)
-                });
-                captures.set(list);
-            }
-            Err(_) => {}
+        if let Ok(mut list) = crate::api::get::<Vec<CaptureTask>>("/api/captures").await {
+            // Filter to only "done" captures
+            list.retain(|c| c.status == "done");
+            // Sort by finished_at descending (most recent first)
+            list.sort_by(|a, b| {
+                let fa = a.finished_at.as_deref().unwrap_or("");
+                let fb = b.finished_at.as_deref().unwrap_or("");
+                fb.cmp(fa)
+            });
+            captures.set(list);
         }
         captures_loading.set(false);
     });

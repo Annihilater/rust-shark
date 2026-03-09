@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+#[allow(dead_code)]
 #[component]
 pub fn Toast(
     #[prop(into)] message: Signal<Option<String>>,

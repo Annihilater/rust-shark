@@ -18,7 +18,7 @@ impl CryptoService {
         let len = secret_bytes.len().min(32);
         key_bytes[..len].copy_from_slice(&secret_bytes[..len]);
 
-        let key = Key::<Aes256Gcm>::from_slice(&key_bytes).clone();
+        let key = *Key::<Aes256Gcm>::from_slice(&key_bytes);
         Ok(Self { key })
     }
 

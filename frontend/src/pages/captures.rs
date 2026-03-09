@@ -672,7 +672,7 @@ pub fn CapturesPage() -> impl IntoView {
 
                         // 分页
                         {move || {
-                            let total = (tasks.get().len() + PAGE_SIZE - 1) / PAGE_SIZE;
+                            let total = tasks.get().len().div_ceil(PAGE_SIZE);
                             if total <= 1 {
                                 view! { <div/> }.into_any()
                             } else {

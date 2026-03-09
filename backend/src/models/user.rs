@@ -45,6 +45,7 @@ impl User {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_admin(&self) -> bool {
         self.role == "admin"
     }

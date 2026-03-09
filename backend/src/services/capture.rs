@@ -30,6 +30,7 @@ async fn update_log(pool: &DbPool, task_id: &str, msg: &str) {
 
 /// 通过 scp 从远端下载文件到本地
 /// 使用系统 scp 命令，支持任意大小文件，不受内存限制
+#[allow(clippy::too_many_arguments)]
 async fn download_via_scp(
     host: &str,
     port: u16,
@@ -277,7 +278,7 @@ pub async fn run_capture(
         }
 
         // 每 5 次轮询（≈10 秒）更新一次包计数日志
-        if poll_counter % 5 == 0 {
+        if poll_counter.is_multiple_of(5) {
             let count_cmd = format!("tcpdump -r {} --count 2>/dev/null | tail -1", remote_file);
             if let Ok((count_out, _)) = ssh::exec(&session, &count_cmd).await {
                 let count_str = count_out.trim().to_string();

@@ -83,7 +83,7 @@ pub fn Select(
             <button
                 type="button"
                 class=btn_class
-                disabled=move || is_disabled()
+                disabled=is_disabled
                 on:click=move |e| {
                     e.stop_propagation();
                     if !is_disabled() {

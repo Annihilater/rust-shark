@@ -188,7 +188,7 @@ pub fn KeysPage() -> impl IntoView {
                         let start = (page.get() - 1) * PAGE_SIZE;
                         all.into_iter().skip(start).take(PAGE_SIZE).map(|key| {
                         let id           = key.id.clone();
-                        let on_del       = on_delete.clone();
+                        let on_del       = on_delete;
                         let key_for_view = key.clone();
                         view! {
                             <div class="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-start justify-between gap-4">
@@ -227,7 +227,7 @@ pub fn KeysPage() -> impl IntoView {
 
                     // 分页栏
                     {move || {
-                        let total = (keys.get().len() + PAGE_SIZE - 1) / PAGE_SIZE;
+                        let total = keys.get().len().div_ceil(PAGE_SIZE);
                         if total <= 1 {
                             view! { <div/> }.into_any()
                         } else {

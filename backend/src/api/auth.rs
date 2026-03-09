@@ -19,14 +19,14 @@ async fn login(
             .bind(&req.email)
             .fetch_optional(&state.pool)
             .await
-            .map_err(|e| internal_error(e))?;
+            .map_err(internal_error)?;
 
     let user = match user {
         Some(u) => u,
         None => return Err(bad_request("邮箱或密码错误")),
     };
 
-    let valid = verify(&req.password, &user.password_hash).map_err(|e| internal_error(e))?;
+    let valid = verify(&req.password, &user.password_hash).map_err(internal_error)?;
 
     if !valid {
         return Err(bad_request("邮箱或密码错误"));
@@ -38,7 +38,7 @@ async fn login(
     );
     let token = auth
         .generate_token(&user.id, &user.email, &user.role)
-        .map_err(|e| internal_error(e))?;
+        .map_err(internal_error)?;
 
     Ok(Json(LoginResponse {
         token,

@@ -61,6 +61,7 @@ pub fn bad_request(msg: impl ToString) -> (StatusCode, Json<ApiError>) {
 #[derive(Debug, Clone)]
 pub struct AuthUser {
     pub user_id: String,
+    #[allow(dead_code)]
     pub email: String,
     pub role: String,
 }
