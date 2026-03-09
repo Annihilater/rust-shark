@@ -1,0 +1,19 @@
+# cargo-audit 配置
+# 参考：https://github.com/rustsec/rustsec/tree/main/cargo-audit
+
+[advisories]
+# 忽略的漏洞 ID 列表
+ignore = [
+    # RUSTSEC-2023-0071：rsa crate Marvin Attack 计时侧信道（CVE-2023-49092）
+    # 来源：ssh-key crate 的 rsa feature（SSH 密钥解析/生成功能）
+    # 官方状态：暂无补丁，issue 持续跟踪中
+    # 本项目风险评估：SSH 密钥操作在用户侧本地执行，攻击者无法在同一网络
+    # 路径观测计时，且功能为密钥管理不涉及 RSA 解密热路径，风险可接受
+    # 关联：https://github.com/RustCrypto/RSA/issues/19
+    "RUSTSEC-2023-0071",
+]
+
+[output]
+# unmaintained 级别降为 warn，不触发 CI 失败
+# RUSTSEC-2024-0436（paste crate）：leptos 间接依赖，无法直接控制，等待上游迁移
+informational_warnings = ["unmaintained", "unsound", "notice"]
