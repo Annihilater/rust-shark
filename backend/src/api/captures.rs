@@ -8,7 +8,7 @@ use axum::{
 };
 use tokio::fs;
 
-use crate::api::{bad_request, internal_error, not_found, AuthUser, ApiResult};
+use crate::api::{bad_request, internal_error, not_found, ApiResult, AuthUser};
 use crate::models::capture::{CaptureTask, CreateCaptureRequest};
 use crate::services::sharkd::{PacketDetail, PacketSummary, SharkdSession};
 use crate::state::AppState;
@@ -63,14 +63,13 @@ async fn create_capture(
     Json(req): Json<CreateCaptureRequest>,
 ) -> ApiResult<CaptureTask> {
     // 验证服务器属于当前用户
-    let server_exists: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM servers WHERE id = ? AND user_id = ?",
-    )
-    .bind(&req.server_id)
-    .bind(&auth.user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(internal_error)?;
+    let server_exists: Option<String> =
+        sqlx::query_scalar("SELECT id FROM servers WHERE id = ? AND user_id = ?")
+            .bind(&req.server_id)
+            .bind(&auth.user_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(internal_error)?;
 
     if server_exists.is_none() {
         return Err(not_found("服务器不存在"));
@@ -179,7 +178,9 @@ async fn get_capture_log(
     .map_err(internal_error)?
     .ok_or_else(|| not_found("任务不存在"))?;
 
-    Ok(Json(serde_json::json!({"log": task.log_msg.unwrap_or_default()})))
+    Ok(Json(
+        serde_json::json!({"log": task.log_msg.unwrap_or_default()}),
+    ))
 }
 
 async fn delete_capture(
@@ -322,18 +323,15 @@ async fn run_capture_task(
     use crate::models::server::Server;
     use crate::services::capture;
 
-    let server = sqlx::query_as::<_, Server>(
-        "SELECT * FROM servers WHERE id = ? AND user_id = ?",
-    )
-    .bind(&task.server_id)
-    .bind(user_id)
-    .fetch_one(&state.pool)
-    .await?;
+    let server = sqlx::query_as::<_, Server>("SELECT * FROM servers WHERE id = ? AND user_id = ?")
+        .bind(&task.server_id)
+        .bind(user_id)
+        .fetch_one(&state.pool)
+        .await?;
 
-    let (private_key_pem, password) =
-        get_server_credentials(state, &task.server_id, user_id)
-            .await
-            .map_err(|(_, e)| anyhow::anyhow!("{}", e.0.message))?;
+    let (private_key_pem, password) = get_server_credentials(state, &task.server_id, user_id)
+        .await
+        .map_err(|(_, e)| anyhow::anyhow!("{}", e.0.message))?;
 
     capture::run_capture(
         task,

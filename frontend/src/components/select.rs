@@ -8,7 +8,10 @@ pub struct SelectOption {
 
 impl SelectOption {
     pub fn new(value: impl Into<String>, label: impl Into<String>) -> Self {
-        Self { value: value.into(), label: label.into() }
+        Self {
+            value: value.into(),
+            label: label.into(),
+        }
     }
 }
 
@@ -30,8 +33,8 @@ pub fn Select(
     #[prop(optional, into)] disabled: Option<Signal<bool>>,
     #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
-    let open        = RwSignal::new(false);
-    let options     = StoredValue::new(options);
+    let open = RwSignal::new(false);
+    let options = StoredValue::new(options);
     let placeholder = StoredValue::new(placeholder);
     let extra_class = class.unwrap_or_default();
 
@@ -56,7 +59,10 @@ pub fn Select(
     let btn_class = move || {
         let base = "w-full flex items-center justify-between border rounded-lg px-3 py-2 text-sm focus:outline-none transition-colors";
         if is_disabled() {
-            format!("{} bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed", base)
+            format!(
+                "{} bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed",
+                base
+            )
         } else {
             format!("{} bg-gray-700 border-gray-600 text-white hover:border-gray-500 focus:border-blue-500 cursor-pointer", base)
         }
@@ -64,7 +70,11 @@ pub fn Select(
 
     // 文字颜色
     let label_class = move || {
-        if is_disabled() || value.get().is_empty() { "text-gray-400" } else { "text-white" }
+        if is_disabled() || value.get().is_empty() {
+            "text-gray-400"
+        } else {
+            "text-white"
+        }
     };
 
     view! {

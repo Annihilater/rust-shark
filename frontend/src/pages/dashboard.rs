@@ -1,7 +1,7 @@
-use leptos::prelude::*;
-use serde::Deserialize;
 use crate::components::layout::Layout;
 use crate::store::use_auth;
+use leptos::prelude::*;
+use serde::Deserialize;
 
 #[derive(Deserialize, Clone)]
 struct Stats {
@@ -30,12 +30,12 @@ fn parse_datetime_secs(s: &str) -> Option<f64> {
     if s.len() < 19 {
         return None;
     }
-    let year:  f64 = s[0..4].parse().ok()?;
+    let year: f64 = s[0..4].parse().ok()?;
     let month: f64 = s[5..7].parse().ok()?;
-    let day:   f64 = s[8..10].parse().ok()?;
-    let hour:  f64 = s[11..13].parse().ok()?;
-    let min:   f64 = s[14..16].parse().ok()?;
-    let sec:   f64 = s[17..19].parse().ok()?;
+    let day: f64 = s[8..10].parse().ok()?;
+    let hour: f64 = s[11..13].parse().ok()?;
+    let min: f64 = s[14..16].parse().ok()?;
+    let sec: f64 = s[17..19].parse().ok()?;
     let approx_days = (year - 1970.0) * 365.25 + (month - 1.0) * 30.44 + day - 1.0;
     Some(approx_days * 86400.0 + hour * 3600.0 + min * 60.0 + sec)
 }
@@ -82,12 +82,12 @@ pub fn DashboardPage() -> impl IntoView {
         }
     });
 
-    let stats = LocalResource::new(|| async {
-        crate::api::get::<Stats>("/api/stats").await.ok()
-    });
+    let stats = LocalResource::new(|| async { crate::api::get::<Stats>("/api/stats").await.ok() });
 
     let recent_captures = LocalResource::new(|| async {
-        crate::api::get::<Vec<RecentCapture>>("/api/captures").await.ok()
+        crate::api::get::<Vec<RecentCapture>>("/api/captures")
+            .await
+            .ok()
     });
 
     view! {
@@ -359,35 +359,29 @@ pub fn DashboardPage() -> impl IntoView {
 // DonutChart — pure SVG stroke-dasharray donut
 // ─────────────────────────────────────────────────────────────────────────────
 #[component]
-fn DonutChart(
-    total: i64,
-    done: i64,
-    running: i64,
-    cancelled: i64,
-    failed: i64,
-) -> impl IntoView {
+fn DonutChart(total: i64, done: i64, running: i64, cancelled: i64, failed: i64) -> impl IntoView {
     // r=45, circumference = 2π*45 ≈ 282.74
     let circ: f64 = 2.0 * std::f64::consts::PI * 45.0;
 
     let denom = if total > 0 { total as f64 } else { 1.0 };
-    let p_done      = done      as f64 / denom;
-    let p_running   = running   as f64 / denom;
+    let p_done = done as f64 / denom;
+    let p_running = running as f64 / denom;
     let p_cancelled = cancelled as f64 / denom;
-    let p_failed    = failed    as f64 / denom;
+    let p_failed = failed as f64 / denom;
 
-    let arc_done      = p_done      * circ;
-    let arc_running   = p_running   * circ;
+    let arc_done = p_done * circ;
+    let arc_running = p_running * circ;
     let arc_cancelled = p_cancelled * circ;
-    let arc_failed    = p_failed    * circ;
+    let arc_failed = p_failed * circ;
 
     // Start from top (rotate-90 is applied via transform on each segment).
     // stroke-dashoffset moves the start of the dash.
     // Offset for each segment = circ/4 - cumulative prior arcs
     let q = circ / 4.0;
-    let off_done      = q;
-    let off_running   = q - arc_done;
+    let off_done = q;
+    let off_running = q - arc_done;
     let off_cancelled = q - arc_done - arc_running;
-    let off_failed    = q - arc_done - arc_running - arc_cancelled;
+    let off_failed = q - arc_done - arc_running - arc_cancelled;
 
     let da = |arc: f64| format!("{:.2} {:.2}", arc, circ - arc);
     let do_ = |off: f64| format!("{:.2}", off);
@@ -554,10 +548,10 @@ fn StatCard(
     color: &'static str,
 ) -> impl IntoView {
     let bg = match color {
-        "green"  => "bg-green-900/30 border-green-700",
+        "green" => "bg-green-900/30 border-green-700",
         "purple" => "bg-purple-900/30 border-purple-700",
-        "red"    => "bg-red-900/30 border-red-700",
-        _        => "bg-blue-900/30 border-blue-700",
+        "red" => "bg-red-900/30 border-red-700",
+        _ => "bg-blue-900/30 border-blue-700",
     };
 
     view! {

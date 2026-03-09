@@ -1,5 +1,5 @@
-use leptos::prelude::*;
 use crate::store::{use_auth, AuthState};
+use leptos::prelude::*;
 
 #[component]
 pub fn Layout(children: Children) -> impl IntoView {

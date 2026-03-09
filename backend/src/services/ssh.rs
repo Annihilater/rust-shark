@@ -56,7 +56,10 @@ pub async fn exec(session: &Session, command: &str) -> Result<(String, i32)> {
         .arg(command)
         .output()
         .await
-        .context(format!("执行命令失败: {}", &command[..command.len().min(100)]))?;
+        .context(format!(
+            "执行命令失败: {}",
+            &command[..command.len().min(100)]
+        ))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let exit_code = output.status.code().unwrap_or(-1);

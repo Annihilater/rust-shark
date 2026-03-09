@@ -1,6 +1,6 @@
+use crate::store::{use_auth, AuthState};
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::store::{use_auth, AuthState};
 
 #[derive(Serialize)]
 struct LoginRequest {

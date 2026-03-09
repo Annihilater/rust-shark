@@ -17,11 +17,12 @@ pub fn Modal(
             return;
         }
 
-        let closure = Closure::<dyn Fn(web_sys::KeyboardEvent)>::new(move |ev: web_sys::KeyboardEvent| {
-            if ev.key() == "Escape" {
-                on_close.run(());
-            }
-        });
+        let closure =
+            Closure::<dyn Fn(web_sys::KeyboardEvent)>::new(move |ev: web_sys::KeyboardEvent| {
+                if ev.key() == "Escape" {
+                    on_close.run(());
+                }
+            });
 
         let window = web_sys::window().unwrap();
         window
@@ -32,10 +33,7 @@ pub fn Modal(
         let cb = closure.into_js_value();
         on_cleanup(move || {
             let window = web_sys::window().unwrap();
-            let _ = window.remove_event_listener_with_callback(
-                "keydown",
-                cb.unchecked_ref(),
-            );
+            let _ = window.remove_event_listener_with_callback("keydown", cb.unchecked_ref());
         });
     });
 

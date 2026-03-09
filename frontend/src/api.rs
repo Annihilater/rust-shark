@@ -22,7 +22,11 @@ pub struct ApiError {
 fn handle_401(status: u16) {
     if status == 401 {
         crate::store::AuthState::clear();
-        web_sys::window().unwrap().location().set_href("/login").ok();
+        web_sys::window()
+            .unwrap()
+            .location()
+            .set_href("/login")
+            .ok();
     }
 }
 

@@ -1,7 +1,11 @@
+use crate::components::{
+    layout::Layout,
+    modal::Modal,
+    select::{Select, SelectOption},
+};
+use crate::store::use_auth;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::components::{layout::Layout, modal::Modal, select::{Select, SelectOption}};
-use crate::store::use_auth;
 
 #[derive(Deserialize, Clone, Debug)]
 struct SshKey {
@@ -39,11 +43,11 @@ enum AddTab {
 
 fn key_type_options() -> Vec<SelectOption> {
     vec![
-        SelectOption::new("ed25519",    "Ed25519（推荐，最快最安全）"),
+        SelectOption::new("ed25519", "Ed25519（推荐，最快最安全）"),
         SelectOption::new("ecdsa-p256", "ECDSA P-256"),
         SelectOption::new("ecdsa-p384", "ECDSA P-384"),
-        SelectOption::new("rsa-4096",   "RSA 4096 位"),
-        SelectOption::new("rsa-2048",   "RSA 2048 位"),
+        SelectOption::new("rsa-4096", "RSA 4096 位"),
+        SelectOption::new("rsa-2048", "RSA 2048 位"),
     ]
 }
 
@@ -52,17 +56,21 @@ pub fn KeysPage() -> impl IntoView {
     let auth = use_auth();
     Effect::new(move |_| {
         if !auth.get().is_logged_in() {
-            web_sys::window().unwrap().location().set_href("/login").ok();
+            web_sys::window()
+                .unwrap()
+                .location()
+                .set_href("/login")
+                .ok();
         }
     });
 
-    let keys       = RwSignal::new(Vec::<SshKey>::new());
-    let page       = RwSignal::new(1usize);
+    let keys = RwSignal::new(Vec::<SshKey>::new());
+    let page = RwSignal::new(1usize);
     const PAGE_SIZE: usize = 10;
     let show_modal = RwSignal::new(false);
-    let error     = RwSignal::new(Option::<String>::None);
-    let success   = RwSignal::new(Option::<String>::None);
-    let view_key  = RwSignal::new(Option::<SshKey>::None);
+    let error = RwSignal::new(Option::<String>::None);
+    let success = RwSignal::new(Option::<String>::None);
+    let view_key = RwSignal::new(Option::<SshKey>::None);
     let active_tab = RwSignal::new(AddTab::Paste);
 
     // ── 加载列表 ──────────────────────────────────────────────────────────
@@ -77,13 +85,16 @@ pub fn KeysPage() -> impl IntoView {
     load_keys();
 
     // ── 粘贴 Tab ──────────────────────────────────────────────────────────
-    let key_name   = RwSignal::new(String::new());
+    let key_name = RwSignal::new(String::new());
     let private_key = RwSignal::new(String::new());
 
     let on_create = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
         error.set(None);
-        let req = CreateKeyRequest { name: key_name.get(), private_key: private_key.get() };
+        let req = CreateKeyRequest {
+            name: key_name.get(),
+            private_key: private_key.get(),
+        };
         leptos::task::spawn_local(async move {
             match crate::api::post::<_, SshKey>("/api/keys", &req).await {
                 Ok(_) => {
@@ -99,8 +110,8 @@ pub fn KeysPage() -> impl IntoView {
     };
 
     // ── 生成 Tab ──────────────────────────────────────────────────────────
-    let gen_name    = RwSignal::new(String::new());
-    let gen_type    = RwSignal::new("ed25519".to_string());
+    let gen_name = RwSignal::new(String::new());
+    let gen_type = RwSignal::new("ed25519".to_string());
     let gen_comment = RwSignal::new(String::new());
 
     let on_generate = move |ev: leptos::ev::SubmitEvent| {
@@ -109,7 +120,14 @@ pub fn KeysPage() -> impl IntoView {
         let req = GenerateKeyRequest {
             name: gen_name.get(),
             key_type: gen_type.get(),
-            comment: { let c = gen_comment.get(); if c.is_empty() { None } else { Some(c) } },
+            comment: {
+                let c = gen_comment.get();
+                if c.is_empty() {
+                    None
+                } else {
+                    Some(c)
+                }
+            },
         };
         leptos::task::spawn_local(async move {
             match crate::api::post::<_, GenerateKeyResponse>("/api/keys/generate", &req).await {
@@ -117,7 +135,10 @@ pub fn KeysPage() -> impl IntoView {
                     show_modal.set(false);
                     gen_name.set(String::new());
                     gen_comment.set(String::new());
-                    success.set(Some(format!("密钥 \"{}\" 生成成功，私钥已加密保存", resp.key.name)));
+                    success.set(Some(format!(
+                        "密钥 \"{}\" 生成成功，私钥已加密保存",
+                        resp.key.name
+                    )));
                     load_keys();
                 }
                 Err(e) => error.set(Some(e)),

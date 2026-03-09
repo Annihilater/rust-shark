@@ -42,9 +42,7 @@ impl CryptoService {
 
     /// 解密 base64(nonce + ciphertext)
     pub fn decrypt(&self, encrypted: &str) -> Result<String> {
-        let combined = BASE64
-            .decode(encrypted)
-            .context("base64解码失败")?;
+        let combined = BASE64.decode(encrypted).context("base64解码失败")?;
 
         if combined.len() < 12 {
             anyhow::bail!("密文太短");

@@ -14,21 +14,19 @@ async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
 ) -> ApiResult<LoginResponse> {
-    let user = sqlx::query_as::<_, crate::models::user::User>(
-        "SELECT * FROM users WHERE email = ?",
-    )
-    .bind(&req.email)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| internal_error(e))?;
+    let user =
+        sqlx::query_as::<_, crate::models::user::User>("SELECT * FROM users WHERE email = ?")
+            .bind(&req.email)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| internal_error(e))?;
 
     let user = match user {
         Some(u) => u,
         None => return Err(bad_request("邮箱或密码错误")),
     };
 
-    let valid = verify(&req.password, &user.password_hash)
-        .map_err(|e| internal_error(e))?;
+    let valid = verify(&req.password, &user.password_hash).map_err(|e| internal_error(e))?;
 
     if !valid {
         return Err(bad_request("邮箱或密码错误"));

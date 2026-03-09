@@ -38,8 +38,7 @@ impl Config {
                 .unwrap_or_else(|_| "admin@example.com".to_string()),
             admin_password: std::env::var("ADMIN_PASSWORD")
                 .unwrap_or_else(|_| "Admin@123456".to_string()),
-            admin_name: std::env::var("ADMIN_NAME")
-                .unwrap_or_else(|_| "Administrator".to_string()),
+            admin_name: std::env::var("ADMIN_NAME").unwrap_or_else(|_| "Administrator".to_string()),
         })
     }
 }

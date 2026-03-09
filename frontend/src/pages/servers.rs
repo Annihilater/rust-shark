@@ -1,7 +1,11 @@
+use crate::components::{
+    layout::Layout,
+    modal::Modal,
+    select::{Select, SelectOption},
+};
+use crate::store::use_auth;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::components::{layout::Layout, modal::Modal, select::{Select, SelectOption}};
-use crate::store::use_auth;
 
 #[derive(Deserialize, Clone, Debug)]
 struct Server {
@@ -49,7 +53,7 @@ struct Interface {
 
 fn auth_type_options() -> Vec<SelectOption> {
     vec![
-        SelectOption::new("key",      "SSH 密钥（推荐）"),
+        SelectOption::new("key", "SSH 密钥（推荐）"),
         SelectOption::new("password", "密码"),
     ]
 }
@@ -59,16 +63,20 @@ pub fn ServersPage() -> impl IntoView {
     let auth = use_auth();
     Effect::new(move |_| {
         if !auth.get().is_logged_in() {
-            web_sys::window().unwrap().location().set_href("/login").ok();
+            web_sys::window()
+                .unwrap()
+                .location()
+                .set_href("/login")
+                .ok();
         }
     });
 
-    let servers     = RwSignal::new(Vec::<Server>::new());
-    let page        = RwSignal::new(1usize);
+    let servers = RwSignal::new(Vec::<Server>::new());
+    let page = RwSignal::new(1usize);
     const PAGE_SIZE: usize = 10;
-    let keys        = RwSignal::new(Vec::<SshKey>::new());
-    let show_modal  = RwSignal::new(false);
-    let testing_id  = RwSignal::new(Option::<String>::None);
+    let keys = RwSignal::new(Vec::<SshKey>::new());
+    let show_modal = RwSignal::new(false);
+    let testing_id = RwSignal::new(Option::<String>::None);
     let test_result = RwSignal::new(Option::<TestResult>::None);
 
     // None = 新建模式；Some(id) = 编辑模式
@@ -76,17 +84,17 @@ pub fn ServersPage() -> impl IntoView {
 
     // 弹窗内测试结果（独立于列表页横幅）
     let modal_test_result = RwSignal::new(Option::<TestResult>::None);
-    let modal_testing     = RwSignal::new(false);
+    let modal_testing = RwSignal::new(false);
 
     // 表单字段
-    let name           = RwSignal::new(String::new());
-    let host           = RwSignal::new(String::new());
-    let port           = RwSignal::new("22".to_string());
-    let username       = RwSignal::new("root".to_string());
-    let auth_type      = RwSignal::new("key".to_string());
+    let name = RwSignal::new(String::new());
+    let host = RwSignal::new(String::new());
+    let port = RwSignal::new("22".to_string());
+    let username = RwSignal::new("root".to_string());
+    let auth_type = RwSignal::new("key".to_string());
     let ssh_key_id_str = RwSignal::new(String::new());
-    let password       = RwSignal::new(String::new());
-    let error          = RwSignal::new(Option::<String>::None);
+    let password = RwSignal::new(String::new());
+    let error = RwSignal::new(Option::<String>::None);
 
     // ── 加载 ──────────────────────────────────────────────────────────────
     let load_servers = move || {
@@ -148,10 +156,18 @@ pub fn ServersPage() -> impl IntoView {
             port: port.get().parse().ok(),
             username: username.get(),
             auth_type: auth_type.get(),
-            ssh_key_id: if key_id.is_empty() { None } else { Some(key_id) },
+            ssh_key_id: if key_id.is_empty() {
+                None
+            } else {
+                Some(key_id)
+            },
             password: if auth_type.get() == "password" {
                 let p = password.get();
-                if p.is_empty() { None } else { Some(p) }
+                if p.is_empty() {
+                    None
+                } else {
+                    Some(p)
+                }
             } else {
                 None
             },
@@ -186,10 +202,18 @@ pub fn ServersPage() -> impl IntoView {
             port: port.get().parse().ok(),
             username: username.get(),
             auth_type: auth_type.get(),
-            ssh_key_id: if key_id.is_empty() { None } else { Some(key_id) },
+            ssh_key_id: if key_id.is_empty() {
+                None
+            } else {
+                Some(key_id)
+            },
             password: if auth_type.get() == "password" {
                 let p = password.get();
-                if p.is_empty() { None } else { Some(p) }
+                if p.is_empty() {
+                    None
+                } else {
+                    Some(p)
+                }
             } else {
                 None
             },
@@ -209,8 +233,13 @@ pub fn ServersPage() -> impl IntoView {
             leptos::task::spawn_local(async move {
                 let path = format!("/api/servers/{}/test", eid);
                 match crate::api::post::<_, TestResult>(&path, &serde_json::json!({})).await {
-                    Ok(r) => { modal_test_result.set(Some(r)); load_servers(); }
-                    Err(e) => { error.set(Some(e)); }
+                    Ok(r) => {
+                        modal_test_result.set(Some(r));
+                        load_servers();
+                    }
+                    Err(e) => {
+                        error.set(Some(e));
+                    }
                 }
                 modal_testing.set(false);
             });
@@ -225,9 +254,15 @@ pub fn ServersPage() -> impl IntoView {
                         load_servers();
                         // 保存成功后立即测试
                         let path = format!("/api/servers/{}/test", new_id);
-                        match crate::api::post::<_, TestResult>(&path, &serde_json::json!({})).await {
-                            Ok(r) => { modal_test_result.set(Some(r)); load_servers(); }
-                            Err(e) => { error.set(Some(e)); }
+                        match crate::api::post::<_, TestResult>(&path, &serde_json::json!({})).await
+                        {
+                            Ok(r) => {
+                                modal_test_result.set(Some(r));
+                                load_servers();
+                            }
+                            Err(e) => {
+                                error.set(Some(e));
+                            }
                         }
                     }
                     Err(e) => error.set(Some(e)),

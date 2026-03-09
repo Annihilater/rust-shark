@@ -1,7 +1,11 @@
+use crate::components::{
+    layout::Layout,
+    modal::Modal,
+    select::{Select, SelectOption},
+};
+use crate::store::use_auth;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::components::{layout::Layout, modal::Modal, select::{Select, SelectOption}};
-use crate::store::use_auth;
 
 #[derive(Deserialize, Clone, Debug)]
 struct CaptureProfile {
@@ -54,31 +58,36 @@ pub fn CaptureProfilesPage() -> impl IntoView {
     let auth = use_auth();
     Effect::new(move |_| {
         if !auth.get().is_logged_in() {
-            web_sys::window().unwrap().location().set_href("/login").ok();
+            web_sys::window()
+                .unwrap()
+                .location()
+                .set_href("/login")
+                .ok();
         }
     });
 
-    let profiles       = RwSignal::new(Vec::<CaptureProfile>::new());
-    let servers        = RwSignal::new(Vec::<Server>::new());
-    let interfaces     = RwSignal::new(Vec::<Interface>::new());
-    let show_modal     = RwSignal::new(false);
-    let error          = RwSignal::new(Option::<String>::None);
-    let notice         = RwSignal::new(Option::<String>::None);
+    let profiles = RwSignal::new(Vec::<CaptureProfile>::new());
+    let servers = RwSignal::new(Vec::<Server>::new());
+    let interfaces = RwSignal::new(Vec::<Interface>::new());
+    let show_modal = RwSignal::new(false);
+    let error = RwSignal::new(Option::<String>::None);
+    let notice = RwSignal::new(Option::<String>::None);
     let loading_ifaces = RwSignal::new(false);
-    let running_id     = RwSignal::new(Option::<String>::None);
+    let running_id = RwSignal::new(Option::<String>::None);
 
     // 表单字段
-    let name         = RwSignal::new(String::new());
-    let server_id    = RwSignal::new(String::new());
-    let iface        = RwSignal::new(String::new());
-    let filter       = RwSignal::new(String::new());
-    let duration     = RwSignal::new("60".to_string());
+    let name = RwSignal::new(String::new());
+    let server_id = RwSignal::new(String::new());
+    let iface = RwSignal::new(String::new());
+    let filter = RwSignal::new(String::new());
+    let duration = RwSignal::new("60".to_string());
     let packet_limit = RwSignal::new("1000".to_string());
 
     // ── 加载 ──────────────────────────────────────────────────────────────
     let load_profiles = move || {
         leptos::task::spawn_local(async move {
-            if let Ok(list) = crate::api::get::<Vec<CaptureProfile>>("/api/capture-profiles").await {
+            if let Ok(list) = crate::api::get::<Vec<CaptureProfile>>("/api/capture-profiles").await
+            {
                 profiles.set(list);
             }
         });
@@ -125,7 +134,14 @@ pub fn CaptureProfilesPage() -> impl IntoView {
             name: name.get().trim().to_string(),
             server_id: server_id.get(),
             interface: iface.get(),
-            filter: { let f = filter.get(); if f.trim().is_empty() { None } else { Some(f) } },
+            filter: {
+                let f = filter.get();
+                if f.trim().is_empty() {
+                    None
+                } else {
+                    Some(f)
+                }
+            },
             duration: duration.get().parse().ok(),
             packet_limit: packet_limit.get().parse().ok(),
         };

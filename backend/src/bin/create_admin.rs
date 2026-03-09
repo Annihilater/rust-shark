@@ -1,6 +1,5 @@
 /// 创建初始 admin 用户的命令行工具
 /// 用法: cargo run --bin create-admin -- admin@example.com Admin@123456
-
 use anyhow::Result;
 use bcrypt::{hash, DEFAULT_COST};
 use uuid::Uuid;
@@ -22,8 +21,8 @@ async fn main() -> Result<()> {
     let password = &args[2];
     let name = args.get(3).cloned().unwrap_or_else(|| "Admin".to_string());
 
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite://data/rust-shark.db".to_string());
+    let database_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://data/rust-shark.db".to_string());
 
     // 确保数据库目录存在
     if let Some(path) = database_url.strip_prefix("sqlite://") {
@@ -40,11 +39,10 @@ async fn main() -> Result<()> {
     sqlx::migrate!("src/db/migrations").run(&pool).await?;
 
     // 检查邮箱是否已存在
-    let exists: Option<String> =
-        sqlx::query_scalar("SELECT id FROM users WHERE email = ?")
-            .bind(email)
-            .fetch_optional(&pool)
-            .await?;
+    let exists: Option<String> = sqlx::query_scalar("SELECT id FROM users WHERE email = ?")
+        .bind(email)
+        .fetch_optional(&pool)
+        .await?;
 
     if exists.is_some() {
         eprintln!("用户 {} 已存在", email);

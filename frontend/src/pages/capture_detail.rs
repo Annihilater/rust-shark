@@ -1,9 +1,9 @@
+use crate::components::layout::Layout;
+use crate::store::use_auth;
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 use serde::Deserialize;
 use wasm_bindgen::JsCast;
-use crate::components::layout::Layout;
-use crate::store::use_auth;
 
 #[derive(Deserialize, Clone, Debug)]
 struct PacketSummary {
@@ -36,12 +36,8 @@ fn render_tree(node: &serde_json::Value, depth: usize) -> String {
             }
         }
         serde_json::Value::Object(map) => {
-            let label = map.get("l")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let abbr = map.get("t")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let label = map.get("l").and_then(|v| v.as_str()).unwrap_or("");
+            let abbr = map.get("t").and_then(|v| v.as_str()).unwrap_or("");
 
             if !label.is_empty() {
                 let prefix = if depth == 0 { "▸ " } else { "  " };
@@ -96,20 +92,28 @@ fn format_hex_dump(hex: &str) -> String {
         // Hex part
         for (j, b) in chunk.iter().enumerate() {
             result.push_str(&format!("{:02x} ", b));
-            if j == 7 { result.push(' '); }
+            if j == 7 {
+                result.push(' ');
+            }
         }
         // Padding if last row is short
         if chunk.len() < 16 {
             let missing = 16 - chunk.len();
             for j in 0..missing {
                 result.push_str("   ");
-                if chunk.len() + j == 7 { result.push(' '); }
+                if chunk.len() + j == 7 {
+                    result.push(' ');
+                }
             }
         }
         result.push(' ');
         // ASCII part
         for b in chunk {
-            let ch = if *b >= 0x20 && *b < 0x7f { *b as char } else { '.' };
+            let ch = if *b >= 0x20 && *b < 0x7f {
+                *b as char
+            } else {
+                '.'
+            };
             result.push(ch);
         }
         result.push('\n');
@@ -122,7 +126,11 @@ pub fn CaptureDetailPage() -> impl IntoView {
     let auth = use_auth();
     Effect::new(move |_| {
         if !auth.get().is_logged_in() {
-            web_sys::window().unwrap().location().set_href("/login").ok();
+            web_sys::window()
+                .unwrap()
+                .location()
+                .set_href("/login")
+                .ok();
         }
     });
 
@@ -145,13 +153,15 @@ pub fn CaptureDetailPage() -> impl IntoView {
             let mut path = format!("/api/captures/{}/packets?limit=1000", id);
             if !f.is_empty() {
                 // Simple percent-encode for URL query param (handles spaces and special chars)
-                let encoded: String = f.bytes().flat_map(|b| {
-                    match b {
-                        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
-                        | b'-' | b'_' | b'.' | b'~' => vec![b as char],
+                let encoded: String = f
+                    .bytes()
+                    .flat_map(|b| match b {
+                        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                            vec![b as char]
+                        }
                         _ => format!("%{:02X}", b).chars().collect::<Vec<_>>(),
-                    }
-                }).collect();
+                    })
+                    .collect();
                 path.push_str(&format!("&filter={}", encoded));
             }
             match crate::api::get::<Vec<PacketSummary>>(&path).await {
@@ -197,7 +207,8 @@ pub fn CaptureDetailPage() -> impl IntoView {
                         let doc = web_sys::window().unwrap().document().unwrap();
                         let a = doc.create_element("a").unwrap();
                         a.set_attribute("href", &obj_url).ok();
-                        a.set_attribute("download", &format!("capture-{}.pcap", id)).ok();
+                        a.set_attribute("download", &format!("capture-{}.pcap", id))
+                            .ok();
                         let body = doc.body().unwrap();
                         body.append_child(&a).ok();
                         a.unchecked_ref::<web_sys::HtmlElement>().click();

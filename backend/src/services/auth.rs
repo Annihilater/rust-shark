@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
-    pub sub: String,   // user_id
+    pub sub: String, // user_id
     pub email: String,
     pub role: String,
     pub exp: usize,
@@ -19,7 +19,10 @@ pub struct AuthService {
 
 impl AuthService {
     pub fn new(secret: String, expiry_hours: u64) -> Self {
-        Self { secret, expiry_hours }
+        Self {
+            secret,
+            expiry_hours,
+        }
     }
 
     pub fn generate_token(&self, user_id: &str, email: &str, role: &str) -> Result<String> {

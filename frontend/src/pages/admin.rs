@@ -1,8 +1,8 @@
+use crate::components::select::{Select, SelectOption};
+use crate::components::{layout::Layout, modal::Modal};
+use crate::store::use_auth;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::components::{layout::Layout, modal::Modal};
-use crate::components::select::{Select, SelectOption};
-use crate::store::use_auth;
 
 #[derive(Deserialize, Clone, Debug)]
 struct User {

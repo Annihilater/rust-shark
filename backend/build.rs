@@ -11,7 +11,11 @@ fn main() {
     if !dist.exists() {
         std::fs::create_dir_all(dist).ok();
         // 创建占位 index.html
-        std::fs::write(dist.join("index.html"), b"<html><body>Building...</body></html>").ok();
+        std::fs::write(
+            dist.join("index.html"),
+            b"<html><body>Building...</body></html>",
+        )
+        .ok();
     }
 
     // 确保 assets/binaries 存在

@@ -1,3 +1,4 @@
+use axum::body::Body;
 use axum::{
     extract::State,
     http::{header, Request, StatusCode, Uri},
@@ -5,7 +6,6 @@ use axum::{
     response::Response,
     Json, Router,
 };
-use axum::body::Body;
 use serde::Serialize;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -184,9 +184,10 @@ pub fn router(state: AppState) -> Router {
             auth_middleware,
         ));
 
-    let public = Router::new()
-        .nest("/api/auth", auth::router())
-        .route("/api/health", axum::routing::get(|| async { axum::Json(serde_json::json!({"status": "ok"})) }));
+    let public = Router::new().nest("/api/auth", auth::router()).route(
+        "/api/health",
+        axum::routing::get(|| async { axum::Json(serde_json::json!({"status": "ok"})) }),
+    );
 
     Router::new()
         .merge(public)

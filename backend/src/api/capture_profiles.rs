@@ -4,7 +4,7 @@ use axum::{
     Extension, Json, Router,
 };
 
-use crate::api::{bad_request, internal_error, not_found, AuthUser, ApiResult};
+use crate::api::{bad_request, internal_error, not_found, ApiResult, AuthUser};
 use crate::models::capture_profile::{
     CaptureProfile, CreateCaptureProfileRequest, UpdateCaptureProfileRequest,
 };
@@ -13,7 +13,10 @@ use crate::state::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_profiles).post(create_profile))
-        .route("/{id}", get(get_profile).put(update_profile).delete(delete_profile))
+        .route(
+            "/{id}",
+            get(get_profile).put(update_profile).delete(delete_profile),
+        )
 }
 
 async fn list_profiles(
@@ -65,14 +68,13 @@ async fn create_profile(
     }
 
     // 验证服务器属于当前用户
-    let server_exists: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM servers WHERE id = ? AND user_id = ?",
-    )
-    .bind(&req.server_id)
-    .bind(&auth.user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(internal_error)?;
+    let server_exists: Option<String> =
+        sqlx::query_scalar("SELECT id FROM servers WHERE id = ? AND user_id = ?")
+            .bind(&req.server_id)
+            .bind(&auth.user_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(internal_error)?;
 
     if server_exists.is_none() {
         return Err(not_found("服务器不存在"));
@@ -126,25 +128,24 @@ async fn update_profile(
 
     // 如果更新了 server_id，验证归属
     if let Some(ref sid) = req.server_id {
-        let ok: Option<String> = sqlx::query_scalar(
-            "SELECT id FROM servers WHERE id = ? AND user_id = ?",
-        )
-        .bind(sid)
-        .bind(&auth.user_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(internal_error)?;
+        let ok: Option<String> =
+            sqlx::query_scalar("SELECT id FROM servers WHERE id = ? AND user_id = ?")
+                .bind(sid)
+                .bind(&auth.user_id)
+                .fetch_optional(&state.pool)
+                .await
+                .map_err(internal_error)?;
 
         if ok.is_none() {
             return Err(not_found("服务器不存在"));
         }
     }
 
-    let name      = req.name.unwrap_or(profile.name);
+    let name = req.name.unwrap_or(profile.name);
     let server_id = req.server_id.unwrap_or(profile.server_id);
     let interface = req.interface.unwrap_or(profile.interface);
-    let filter    = req.filter.or(profile.filter);
-    let duration  = req.duration.or(profile.duration);
+    let filter = req.filter.or(profile.filter);
+    let duration = req.duration.or(profile.duration);
     let packet_limit = req.packet_limit.or(profile.packet_limit);
     let updated_at = chrono::Utc::now().naive_utc().to_string();
 
@@ -163,13 +164,12 @@ async fn update_profile(
     .await
     .map_err(internal_error)?;
 
-    let updated = sqlx::query_as::<_, CaptureProfile>(
-        "SELECT * FROM capture_profiles WHERE id = ?",
-    )
-    .bind(&id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(internal_error)?;
+    let updated =
+        sqlx::query_as::<_, CaptureProfile>("SELECT * FROM capture_profiles WHERE id = ?")
+            .bind(&id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(internal_error)?;
 
     Ok(Json(updated))
 }
@@ -179,14 +179,13 @@ async fn delete_profile(
     Extension(auth): Extension<AuthUser>,
     Path(id): Path<String>,
 ) -> ApiResult<serde_json::Value> {
-    let exists: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM capture_profiles WHERE id = ? AND user_id = ?",
-    )
-    .bind(&id)
-    .bind(&auth.user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(internal_error)?;
+    let exists: Option<String> =
+        sqlx::query_scalar("SELECT id FROM capture_profiles WHERE id = ? AND user_id = ?")
+            .bind(&id)
+            .bind(&auth.user_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(internal_error)?;
 
     if exists.is_none() {
         return Err(not_found("配置不存在"));

@@ -1,9 +1,13 @@
+use crate::components::{
+    layout::Layout,
+    modal::Modal,
+    select::{Select, SelectOption},
+};
+use crate::store::use_auth;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
-use crate::components::{layout::Layout, modal::Modal, select::{Select, SelectOption}};
-use crate::store::use_auth;
 
 #[derive(Deserialize, Clone, Debug)]
 struct CaptureTask {
@@ -67,35 +71,39 @@ pub fn CapturesPage() -> impl IntoView {
     let auth = use_auth();
     Effect::new(move |_| {
         if !auth.get().is_logged_in() {
-            web_sys::window().unwrap().location().set_href("/login").ok();
+            web_sys::window()
+                .unwrap()
+                .location()
+                .set_href("/login")
+                .ok();
         }
     });
 
-    let page           = RwSignal::new(1usize);
+    let page = RwSignal::new(1usize);
     const PAGE_SIZE: usize = 10;
-    let tasks          = RwSignal::new(Vec::<CaptureTask>::new());
-    let servers        = RwSignal::new(Vec::<Server>::new());
-    let interfaces     = RwSignal::new(Vec::<Interface>::new());
-    let ports          = RwSignal::new(Vec::<u16>::new());
-    let show_modal     = RwSignal::new(false);
-    let error          = RwSignal::new(Option::<String>::None);
+    let tasks = RwSignal::new(Vec::<CaptureTask>::new());
+    let servers = RwSignal::new(Vec::<Server>::new());
+    let interfaces = RwSignal::new(Vec::<Interface>::new());
+    let ports = RwSignal::new(Vec::<u16>::new());
+    let show_modal = RwSignal::new(false);
+    let error = RwSignal::new(Option::<String>::None);
     let loading_ifaces = RwSignal::new(false);
-    let loading_ports  = RwSignal::new(false);
-    let stopping_id    = RwSignal::new(Option::<String>::None);
+    let loading_ports = RwSignal::new(false);
+    let stopping_id = RwSignal::new(Option::<String>::None);
 
     // 日志展开状态
-    let expanded_log_id  = RwSignal::new(Option::<String>::None);
-    let task_logs        = RwSignal::new(HashMap::<String, String>::new());
+    let expanded_log_id = RwSignal::new(Option::<String>::None);
+    let task_logs = RwSignal::new(HashMap::<String, String>::new());
     // 实时抓包预览（仅 running 任务）
-    let live_packets     = RwSignal::new(HashMap::<String, Vec<LivePacket>>::new());
+    let live_packets = RwSignal::new(HashMap::<String, Vec<LivePacket>>::new());
 
     // 表单字段（带默认值）
-    let server_id     = RwSignal::new(String::new());
-    let iface         = RwSignal::new(String::new());
-    let filter        = RwSignal::new(String::new());
-    let duration      = RwSignal::new("60".to_string());
-    let packet_limit  = RwSignal::new("1000".to_string());
-    let scheduled_at  = RwSignal::new(String::new());
+    let server_id = RwSignal::new(String::new());
+    let iface = RwSignal::new(String::new());
+    let filter = RwSignal::new(String::new());
+    let duration = RwSignal::new("60".to_string());
+    let packet_limit = RwSignal::new("1000".to_string());
+    let scheduled_at = RwSignal::new(String::new());
     let selected_ports = RwSignal::new(Vec::<u16>::new());
 
     // ── 加载 ──────────────────────────────────────────────────────────────
@@ -121,7 +129,10 @@ pub fn CapturesPage() -> impl IntoView {
 
     // 定时刷新：有 pending 或 running 任务时每 3 秒刷新一次
     Effect::new(move |_| {
-        let has_active = tasks.get().iter().any(|t| t.status == "running" || t.status == "pending");
+        let has_active = tasks
+            .get()
+            .iter()
+            .any(|t| t.status == "running" || t.status == "pending");
         if has_active {
             leptos::task::spawn_local(async move {
                 gloo_timers::future::TimeoutFuture::new(3_000).await;
@@ -134,27 +145,33 @@ pub fn CapturesPage() -> impl IntoView {
     Effect::new(move |_| {
         let maybe_id = expanded_log_id.get();
         if let Some(id) = maybe_id {
-            let should_poll = tasks.get().iter().any(|t| {
-                t.id == id && (t.status == "running" || t.status == "pending")
-            });
+            let should_poll = tasks
+                .get()
+                .iter()
+                .any(|t| t.id == id && (t.status == "running" || t.status == "pending"));
             if should_poll {
                 let id2 = id.clone();
                 let id3 = id.clone();
                 leptos::task::spawn_local(async move {
                     gloo_timers::future::TimeoutFuture::new(2_000).await;
-                    let log_path     = format!("/api/captures/{}/log", id2);
+                    let log_path = format!("/api/captures/{}/log", id2);
                     let packets_path = format!("/api/captures/{}/packets?limit=50", id3);
 
                     let (log_res, pkts_res) = futures_join(
                         crate::api::get::<CaptureLogResponse>(&log_path),
                         crate::api::get::<Vec<LivePacket>>(&packets_path),
-                    ).await;
+                    )
+                    .await;
 
                     if let Ok(resp) = log_res {
-                        task_logs.update(|m| { m.insert(id2.clone(), resp.log); });
+                        task_logs.update(|m| {
+                            m.insert(id2.clone(), resp.log);
+                        });
                     }
                     if let Ok(pkts) = pkts_res {
-                        live_packets.update(|m| { m.insert(id2.clone(), pkts); });
+                        live_packets.update(|m| {
+                            m.insert(id2.clone(), pkts);
+                        });
                     }
 
                     // 自动滚动日志到底部
@@ -179,13 +196,15 @@ pub fn CapturesPage() -> impl IntoView {
     // ESC 键关闭日志侧边栏
     Effect::new(move |_| {
         use wasm_bindgen::prelude::*;
-        let closure = Closure::<dyn Fn(web_sys::KeyboardEvent)>::new(move |ev: web_sys::KeyboardEvent| {
-            if ev.key() == "Escape" {
-                expanded_log_id.set(None);
-            }
-        });
+        let closure =
+            Closure::<dyn Fn(web_sys::KeyboardEvent)>::new(move |ev: web_sys::KeyboardEvent| {
+                if ev.key() == "Escape" {
+                    expanded_log_id.set(None);
+                }
+            });
         if let Some(win) = web_sys::window() {
-            win.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref()).ok();
+            win.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())
+                .ok();
         }
         closure.forget();
     });
@@ -208,12 +227,13 @@ pub fn CapturesPage() -> impl IntoView {
         let sid2 = sid.clone();
         leptos::task::spawn_local(async move {
             let ifaces_path = format!("/api/servers/{}/interfaces", sid);
-            let ports_path  = format!("/api/servers/{}/ports", sid2);
+            let ports_path = format!("/api/servers/{}/ports", sid2);
 
             let (iface_res, ports_res) = futures_join(
                 crate::api::get::<Vec<Interface>>(&ifaces_path),
                 crate::api::get::<Vec<u16>>(&ports_path),
-            ).await;
+            )
+            .await;
 
             if let Ok(list) = iface_res {
                 let first = list.first().map(|i| i.name.clone()).unwrap_or_default();
@@ -249,7 +269,8 @@ pub fn CapturesPage() -> impl IntoView {
                         let doc = web_sys::window().unwrap().document().unwrap();
                         let a = doc.create_element("a").unwrap();
                         a.set_attribute("href", &url).ok();
-                        a.set_attribute("download", &format!("capture-{}.pcap", id)).ok();
+                        a.set_attribute("download", &format!("capture-{}.pcap", id))
+                            .ok();
                         let body = doc.body().unwrap();
                         body.append_child(&a).ok();
                         a.unchecked_ref::<web_sys::HtmlElement>().click();
@@ -267,7 +288,10 @@ pub fn CapturesPage() -> impl IntoView {
         stopping_id.set(Some(id.clone()));
         leptos::task::spawn_local(async move {
             let path = format!("/api/captures/{}/stop", id);
-            if crate::api::post::<_, serde_json::Value>(&path, &serde_json::json!({})).await.is_ok() {
+            if crate::api::post::<_, serde_json::Value>(&path, &serde_json::json!({}))
+                .await
+                .is_ok()
+            {
                 load_tasks();
             }
             stopping_id.set(None);
@@ -297,7 +321,10 @@ pub fn CapturesPage() -> impl IntoView {
                 repeat_type: None,
                 repeat_until: None,
             };
-            if crate::api::post::<_, CaptureTask>("/api/captures", &req).await.is_ok() {
+            if crate::api::post::<_, CaptureTask>("/api/captures", &req)
+                .await
+                .is_ok()
+            {
                 load_tasks();
             }
         });
@@ -309,23 +336,30 @@ pub fn CapturesPage() -> impl IntoView {
         // 初始化日志缓存
         if let Some(init_log) = &task.log_msg {
             if !init_log.is_empty() {
-                task_logs.update(|m| { m.entry(id.clone()).or_insert_with(|| init_log.clone()); });
+                task_logs.update(|m| {
+                    m.entry(id.clone()).or_insert_with(|| init_log.clone());
+                });
             }
         }
         let id2 = id.clone();
         let id3 = id.clone();
         leptos::task::spawn_local(async move {
-            let log_path  = format!("/api/captures/{}/log", id2);
+            let log_path = format!("/api/captures/{}/log", id2);
             let pkts_path = format!("/api/captures/{}/packets?limit=50", id3);
             let (log_res, pkts_res) = futures_join(
                 crate::api::get::<CaptureLogResponse>(&log_path),
                 crate::api::get::<Vec<LivePacket>>(&pkts_path),
-            ).await;
+            )
+            .await;
             if let Ok(resp) = log_res {
-                task_logs.update(|m| { m.insert(id2.clone(), resp.log); });
+                task_logs.update(|m| {
+                    m.insert(id2.clone(), resp.log);
+                });
             }
             if let Ok(pkts) = pkts_res {
-                live_packets.update(|m| { m.insert(id2.clone(), pkts); });
+                live_packets.update(|m| {
+                    m.insert(id2.clone(), pkts);
+                });
             }
             if let Some(win) = web_sys::window() {
                 if let Some(doc) = win.document() {
@@ -354,9 +388,9 @@ pub fn CapturesPage() -> impl IntoView {
         };
         let user_filter = filter.get();
         let combined_filter = match (user_filter.is_empty(), port_filter.is_empty()) {
-            (true,  true)  => None,
-            (true,  false) => Some(port_filter),
-            (false, true)  => Some(user_filter),
+            (true, true) => None,
+            (true, false) => Some(port_filter),
+            (false, true) => Some(user_filter),
             (false, false) => Some(format!("({}) and {}", user_filter, port_filter)),
         };
 
@@ -366,7 +400,14 @@ pub fn CapturesPage() -> impl IntoView {
             filter: combined_filter,
             duration: duration.get().parse().ok(),
             packet_limit: packet_limit.get().parse().ok(),
-            scheduled_at: { let s = scheduled_at.get(); if s.is_empty() { None } else { Some(s) } },
+            scheduled_at: {
+                let s = scheduled_at.get();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            },
             repeat_type: None,
             repeat_until: None,
         };
@@ -389,9 +430,13 @@ pub fn CapturesPage() -> impl IntoView {
     };
 
     let format_size = |bytes: i64| -> String {
-        if bytes < 1024 { format!("{} B", bytes) }
-        else if bytes < 1024 * 1024 { format!("{:.1} KB", bytes as f64 / 1024.0) }
-        else { format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0)) }
+        if bytes < 1024 {
+            format!("{} B", bytes)
+        } else if bytes < 1024 * 1024 {
+            format!("{:.1} KB", bytes as f64 / 1024.0)
+        } else {
+            format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+        }
     };
 
     view! {
@@ -958,7 +1003,10 @@ pub fn CapturesPage() -> impl IntoView {
 }
 
 // 简化的并行 future join
-async fn futures_join<A, B>(a: impl std::future::Future<Output = A>, b: impl std::future::Future<Output = B>) -> (A, B) {
+async fn futures_join<A, B>(
+    a: impl std::future::Future<Output = A>,
+    b: impl std::future::Future<Output = B>,
+) -> (A, B) {
     let ra = a.await;
     let rb = b.await;
     (ra, rb)

@@ -20,12 +20,11 @@ pub async fn sync_admin(pool: &DbPool, cfg: &Config) -> Result<()> {
     let name = &cfg.admin_name;
 
     // 查询数据库中该邮箱的 admin 用户
-    let existing: Option<(String, String)> = sqlx::query_as(
-        "SELECT id, password_hash FROM users WHERE email = ? AND role = 'admin'",
-    )
-    .bind(email)
-    .fetch_optional(pool)
-    .await?;
+    let existing: Option<(String, String)> =
+        sqlx::query_as("SELECT id, password_hash FROM users WHERE email = ? AND role = 'admin'")
+            .bind(email)
+            .fetch_optional(pool)
+            .await?;
 
     match existing {
         None => {

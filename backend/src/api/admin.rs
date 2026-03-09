@@ -5,7 +5,7 @@ use axum::{
 };
 use bcrypt::{hash, DEFAULT_COST};
 
-use crate::api::{bad_request, internal_error, not_found, AuthUser, ApiResult};
+use crate::api::{bad_request, internal_error, not_found, ApiResult, AuthUser};
 use crate::models::user::{CreateUserRequest, User, UserResponse};
 use crate::state::AppState;
 
@@ -33,12 +33,11 @@ async fn create_user(
     Json(req): Json<CreateUserRequest>,
 ) -> ApiResult<UserResponse> {
     // 检查邮箱是否已存在
-    let exists: Option<String> =
-        sqlx::query_scalar("SELECT id FROM users WHERE email = ?")
-            .bind(&req.email)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(internal_error)?;
+    let exists: Option<String> = sqlx::query_scalar("SELECT id FROM users WHERE email = ?")
+        .bind(&req.email)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(internal_error)?;
 
     if exists.is_some() {
         return Err(bad_request("邮箱已存在"));

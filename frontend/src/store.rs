@@ -16,7 +16,12 @@ impl AuthState {
         let user_id: Option<String> = gloo_storage::LocalStorage::get("user_id").ok();
         let email: Option<String> = gloo_storage::LocalStorage::get("email").ok();
         let role: Option<String> = gloo_storage::LocalStorage::get("role").ok();
-        Self { token, user_id, email, role }
+        Self {
+            token,
+            user_id,
+            email,
+            role,
+        }
     }
 
     pub fn save(&self) {

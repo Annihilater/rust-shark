@@ -4,7 +4,7 @@ use axum::{
     Extension, Json, Router,
 };
 
-use crate::api::{bad_request, internal_error, not_found, AuthUser, ApiResult};
+use crate::api::{bad_request, internal_error, not_found, ApiResult, AuthUser};
 use crate::models::server::{
     CreateServerRequest, NetworkInterface, Server, ServerTestResult, UpdateServerRequest,
 };
@@ -87,15 +87,13 @@ async fn update_server(
     Path(id): Path<String>,
     Json(req): Json<UpdateServerRequest>,
 ) -> ApiResult<Server> {
-    let server = sqlx::query_as::<_, Server>(
-        "SELECT * FROM servers WHERE id = ? AND user_id = ?",
-    )
-    .bind(&id)
-    .bind(&auth.user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(internal_error)?
-    .ok_or_else(|| not_found("服务器不存在"))?;
+    let server = sqlx::query_as::<_, Server>("SELECT * FROM servers WHERE id = ? AND user_id = ?")
+        .bind(&id)
+        .bind(&auth.user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| not_found("服务器不存在"))?;
 
     let crypto = CryptoService::new(&state.config.secret_key).map_err(internal_error)?;
 
@@ -121,13 +119,11 @@ async fn update_server(
     .await
     .map_err(internal_error)?;
 
-    let updated = sqlx::query_as::<_, Server>(
-        "SELECT * FROM servers WHERE id = ?",
-    )
-    .bind(&id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(internal_error)?;
+    let updated = sqlx::query_as::<_, Server>("SELECT * FROM servers WHERE id = ?")
+        .bind(&id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(internal_error)?;
 
     Ok(Json(updated))
 }
@@ -158,15 +154,13 @@ async fn test_server(
 ) -> ApiResult<ServerTestResult> {
     let (private_key_pem, password) = get_server_credentials(&state, &id, &auth.user_id).await?;
 
-    let server = sqlx::query_as::<_, Server>(
-        "SELECT * FROM servers WHERE id = ? AND user_id = ?",
-    )
-    .bind(&id)
-    .bind(&auth.user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(internal_error)?
-    .ok_or_else(|| not_found("服务器不存在"))?;
+    let server = sqlx::query_as::<_, Server>("SELECT * FROM servers WHERE id = ? AND user_id = ?")
+        .bind(&id)
+        .bind(&auth.user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| not_found("服务器不存在"))?;
 
     let result = ssh::test_server_connection(
         &server.host,
@@ -199,14 +193,12 @@ async fn test_server(
 
     // 更新服务器状态
     let new_status = if result.success { "online" } else { "offline" };
-    sqlx::query(
-        "UPDATE servers SET status = ?, last_checked_at = datetime('now') WHERE id = ?",
-    )
-    .bind(new_status)
-    .bind(&id)
-    .execute(&state.pool)
-    .await
-    .map_err(internal_error)?;
+    sqlx::query("UPDATE servers SET status = ?, last_checked_at = datetime('now') WHERE id = ?")
+        .bind(new_status)
+        .bind(&id)
+        .execute(&state.pool)
+        .await
+        .map_err(internal_error)?;
 
     Ok(Json(result))
 }
@@ -218,15 +210,13 @@ async fn get_interfaces(
 ) -> ApiResult<Vec<NetworkInterface>> {
     let (private_key_pem, password) = get_server_credentials(&state, &id, &auth.user_id).await?;
 
-    let server = sqlx::query_as::<_, Server>(
-        "SELECT * FROM servers WHERE id = ? AND user_id = ?",
-    )
-    .bind(&id)
-    .bind(&auth.user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(internal_error)?
-    .ok_or_else(|| not_found("服务器不存在"))?;
+    let server = sqlx::query_as::<_, Server>("SELECT * FROM servers WHERE id = ? AND user_id = ?")
+        .bind(&id)
+        .bind(&auth.user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| not_found("服务器不存在"))?;
 
     let interfaces = ssh::get_interfaces(
         &server.host,
@@ -249,15 +239,13 @@ async fn get_ports(
 ) -> ApiResult<Vec<u16>> {
     let (private_key_pem, password) = get_server_credentials(&state, &id, &auth.user_id).await?;
 
-    let server = sqlx::query_as::<_, Server>(
-        "SELECT * FROM servers WHERE id = ? AND user_id = ?",
-    )
-    .bind(&id)
-    .bind(&auth.user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(internal_error)?
-    .ok_or_else(|| not_found("服务器不存在"))?;
+    let server = sqlx::query_as::<_, Server>("SELECT * FROM servers WHERE id = ? AND user_id = ?")
+        .bind(&id)
+        .bind(&auth.user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| not_found("服务器不存在"))?;
 
     let ports = ssh::get_listening_ports(
         &server.host,
@@ -280,15 +268,13 @@ pub async fn get_server_credentials(
     user_id: &str,
 ) -> Result<(Option<String>, Option<String>), (axum::http::StatusCode, Json<crate::api::ApiError>)>
 {
-    let server = sqlx::query_as::<_, Server>(
-        "SELECT * FROM servers WHERE id = ? AND user_id = ?",
-    )
-    .bind(server_id)
-    .bind(user_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(internal_error)?
-    .ok_or_else(|| not_found("服务器不存在"))?;
+    let server = sqlx::query_as::<_, Server>("SELECT * FROM servers WHERE id = ? AND user_id = ?")
+        .bind(server_id)
+        .bind(user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(internal_error)?
+        .ok_or_else(|| not_found("服务器不存在"))?;
 
     let crypto = CryptoService::new(&state.config.secret_key).map_err(internal_error)?;
 

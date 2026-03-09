@@ -7,10 +7,16 @@ use tracing::info;
 
 // 内嵌 sharkd 二进制（Linux 用）
 #[cfg(target_arch = "x86_64")]
-const SHARKD_BINARY: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../assets/binaries/sharkd-linux-amd64"));
+const SHARKD_BINARY: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../assets/binaries/sharkd-linux-amd64"
+));
 
 #[cfg(target_arch = "aarch64")]
-const SHARKD_BINARY: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../assets/binaries/sharkd-linux-arm64"));
+const SHARKD_BINARY: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../assets/binaries/sharkd-linux-arm64"
+));
 
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 const SHARKD_BINARY: &[u8] = &[0u8];
@@ -105,9 +111,18 @@ impl SharkdSession {
                             number: num,
                             time: c.get(1).and_then(|v| v.as_str()).unwrap_or("").to_string(),
                             source: c.get(2).and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                            destination: c.get(3).and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                            destination: c
+                                .get(3)
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string(),
                             protocol: c.get(4).and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                            length: c.get(5).and_then(|v| v.as_str()).unwrap_or("0").parse().unwrap_or(0),
+                            length: c
+                                .get(5)
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("0")
+                                .parse()
+                                .unwrap_or(0),
                             info: c.get(6).and_then(|v| v.as_str()).unwrap_or("").to_string(),
                         })
                     })
@@ -144,7 +159,10 @@ impl SharkdSession {
 
         Ok(PacketDetail {
             number: frame_number,
-            layers: result.get("tree").cloned().unwrap_or(serde_json::Value::Array(vec![])),
+            layers: result
+                .get("tree")
+                .cloned()
+                .unwrap_or(serde_json::Value::Array(vec![])),
             raw: result
                 .get("bytes")
                 .and_then(|v| v.as_str())
@@ -168,12 +186,10 @@ impl SharkdSession {
             drop(stdin);
         }
 
-        let output = tokio::time::timeout(
-            std::time::Duration::from_secs(30),
-            child.wait_with_output(),
-        )
-        .await
-        .context("sharkd 执行超时")??;
+        let output =
+            tokio::time::timeout(std::time::Duration::from_secs(30), child.wait_with_output())
+                .await
+                .context("sharkd 执行超时")??;
 
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
@@ -183,7 +199,9 @@ impl SharkdSession {
 fn extract_result(stdout: &str, id: u64) -> Result<serde_json::Value> {
     for line in stdout.lines() {
         let line = line.trim();
-        if line.is_empty() { continue; }
+        if line.is_empty() {
+            continue;
+        }
         if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
             // 检查 id 匹配
             if val.get("id").and_then(|v| v.as_u64()) == Some(id) {
@@ -227,7 +245,10 @@ async fn ensure_sharkd(data_dir: &str) -> Result<String> {
     if SHARKD_BINARY.len() > 1024 {
         tokio::fs::create_dir_all(data_dir).await?;
         tokio::fs::write(&sharkd_path, SHARKD_BINARY).await?;
-        Command::new("chmod").args(["+x", &sharkd_path]).output().await?;
+        Command::new("chmod")
+            .args(["+x", &sharkd_path])
+            .output()
+            .await?;
         info!("sharkd 二进制已释放到: {}", sharkd_path);
         return Ok(sharkd_path);
     }

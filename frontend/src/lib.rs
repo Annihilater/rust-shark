@@ -8,16 +8,9 @@ mod pages;
 mod store;
 
 use pages::{
-    admin::AdminPage,
-    analysis::AnalysisPage,
-    captures::CapturesPage,
-    capture_detail::CaptureDetailPage,
-    capture_guide::CaptureGuidePage,
-    capture_profiles::CaptureProfilesPage,
-    dashboard::DashboardPage,
-    keys::KeysPage,
-    login::LoginPage,
-    servers::ServersPage,
+    admin::AdminPage, analysis::AnalysisPage, capture_detail::CaptureDetailPage,
+    capture_guide::CaptureGuidePage, capture_profiles::CaptureProfilesPage, captures::CapturesPage,
+    dashboard::DashboardPage, keys::KeysPage, login::LoginPage, servers::ServersPage,
 };
 
 #[component]

@@ -1,6 +1,6 @@
-use leptos::prelude::*;
 use crate::components::layout::Layout;
 use crate::store::use_auth;
+use leptos::prelude::*;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Data model
@@ -29,184 +29,538 @@ fn sections() -> Vec<FilterSection> {
             title: "协议过滤",
             icon: "🌐",
             items: vec![
-                FilterExample { filter: "tcp",          desc: "所有 TCP 包" },
-                FilterExample { filter: "udp",          desc: "所有 UDP 包" },
-                FilterExample { filter: "icmp",         desc: "所有 ICMP 包（ping）" },
-                FilterExample { filter: "icmpv6",       desc: "IPv6 的 ICMP 包" },
-                FilterExample { filter: "http",         desc: "HTTP/1.x 请求和响应" },
-                FilterExample { filter: "http2",        desc: "HTTP/2 流量" },
-                FilterExample { filter: "dns",          desc: "DNS 查询与响应" },
-                FilterExample { filter: "tls",          desc: "TLS/SSL 握手和加密流量" },
-                FilterExample { filter: "ssh",          desc: "SSH 连接流量" },
-                FilterExample { filter: "ftp",          desc: "FTP 控制连接" },
-                FilterExample { filter: "ftp-data",     desc: "FTP 数据传输" },
-                FilterExample { filter: "smtp",         desc: "SMTP 邮件流量" },
-                FilterExample { filter: "imap",         desc: "IMAP 邮件流量" },
-                FilterExample { filter: "pop",          desc: "POP3 邮件流量" },
-                FilterExample { filter: "arp",          desc: "ARP 地址解析包" },
-                FilterExample { filter: "bootp",        desc: "DHCP 包（基于 BOOTP）" },
-                FilterExample { filter: "ntp",          desc: "NTP 时间同步包" },
-                FilterExample { filter: "sip",          desc: "SIP 信令（VoIP）" },
-                FilterExample { filter: "rtp",          desc: "RTP 媒体流（VoIP）" },
-                FilterExample { filter: "mysql",        desc: "MySQL 数据库协议" },
-                FilterExample { filter: "redis",        desc: "Redis 协议" },
+                FilterExample {
+                    filter: "tcp",
+                    desc: "所有 TCP 包",
+                },
+                FilterExample {
+                    filter: "udp",
+                    desc: "所有 UDP 包",
+                },
+                FilterExample {
+                    filter: "icmp",
+                    desc: "所有 ICMP 包（ping）",
+                },
+                FilterExample {
+                    filter: "icmpv6",
+                    desc: "IPv6 的 ICMP 包",
+                },
+                FilterExample {
+                    filter: "http",
+                    desc: "HTTP/1.x 请求和响应",
+                },
+                FilterExample {
+                    filter: "http2",
+                    desc: "HTTP/2 流量",
+                },
+                FilterExample {
+                    filter: "dns",
+                    desc: "DNS 查询与响应",
+                },
+                FilterExample {
+                    filter: "tls",
+                    desc: "TLS/SSL 握手和加密流量",
+                },
+                FilterExample {
+                    filter: "ssh",
+                    desc: "SSH 连接流量",
+                },
+                FilterExample {
+                    filter: "ftp",
+                    desc: "FTP 控制连接",
+                },
+                FilterExample {
+                    filter: "ftp-data",
+                    desc: "FTP 数据传输",
+                },
+                FilterExample {
+                    filter: "smtp",
+                    desc: "SMTP 邮件流量",
+                },
+                FilterExample {
+                    filter: "imap",
+                    desc: "IMAP 邮件流量",
+                },
+                FilterExample {
+                    filter: "pop",
+                    desc: "POP3 邮件流量",
+                },
+                FilterExample {
+                    filter: "arp",
+                    desc: "ARP 地址解析包",
+                },
+                FilterExample {
+                    filter: "bootp",
+                    desc: "DHCP 包（基于 BOOTP）",
+                },
+                FilterExample {
+                    filter: "ntp",
+                    desc: "NTP 时间同步包",
+                },
+                FilterExample {
+                    filter: "sip",
+                    desc: "SIP 信令（VoIP）",
+                },
+                FilterExample {
+                    filter: "rtp",
+                    desc: "RTP 媒体流（VoIP）",
+                },
+                FilterExample {
+                    filter: "mysql",
+                    desc: "MySQL 数据库协议",
+                },
+                FilterExample {
+                    filter: "redis",
+                    desc: "Redis 协议",
+                },
             ],
         },
         FilterSection {
             title: "IP 地址过滤",
             icon: "📍",
             items: vec![
-                FilterExample { filter: "ip.addr == 192.168.1.1",    desc: "源或目标为该 IP 的所有包" },
-                FilterExample { filter: "ip.src == 192.168.1.1",     desc: "源 IP 为该地址的包" },
-                FilterExample { filter: "ip.dst == 192.168.1.1",     desc: "目标 IP 为该地址的包" },
-                FilterExample { filter: "ip.addr == 10.0.0.0/8",     desc: "10.x.x.x 网段的所有包" },
-                FilterExample { filter: "ip.addr == 192.168.0.0/16", desc: "192.168.x.x 内网包" },
-                FilterExample { filter: "not ip.addr == 192.168.1.1", desc: "不包含该 IP 的包" },
-                FilterExample { filter: "ip.src == 1.1.1.1 and ip.dst == 8.8.8.8", desc: "指定源到目标的单向流量" },
-                FilterExample { filter: "ipv6",                      desc: "所有 IPv6 包" },
-                FilterExample { filter: "ipv6.addr == ::1",          desc: "IPv6 回环地址" },
+                FilterExample {
+                    filter: "ip.addr == 192.168.1.1",
+                    desc: "源或目标为该 IP 的所有包",
+                },
+                FilterExample {
+                    filter: "ip.src == 192.168.1.1",
+                    desc: "源 IP 为该地址的包",
+                },
+                FilterExample {
+                    filter: "ip.dst == 192.168.1.1",
+                    desc: "目标 IP 为该地址的包",
+                },
+                FilterExample {
+                    filter: "ip.addr == 10.0.0.0/8",
+                    desc: "10.x.x.x 网段的所有包",
+                },
+                FilterExample {
+                    filter: "ip.addr == 192.168.0.0/16",
+                    desc: "192.168.x.x 内网包",
+                },
+                FilterExample {
+                    filter: "not ip.addr == 192.168.1.1",
+                    desc: "不包含该 IP 的包",
+                },
+                FilterExample {
+                    filter: "ip.src == 1.1.1.1 and ip.dst == 8.8.8.8",
+                    desc: "指定源到目标的单向流量",
+                },
+                FilterExample {
+                    filter: "ipv6",
+                    desc: "所有 IPv6 包",
+                },
+                FilterExample {
+                    filter: "ipv6.addr == ::1",
+                    desc: "IPv6 回环地址",
+                },
             ],
         },
         FilterSection {
             title: "端口过滤",
             icon: "🔌",
             items: vec![
-                FilterExample { filter: "tcp.port == 80",    desc: "HTTP 端口（源或目标）" },
-                FilterExample { filter: "tcp.port == 443",   desc: "HTTPS 端口" },
-                FilterExample { filter: "tcp.port == 22",    desc: "SSH 端口" },
-                FilterExample { filter: "tcp.port == 3306",  desc: "MySQL 端口" },
-                FilterExample { filter: "tcp.port == 5432",  desc: "PostgreSQL 端口" },
-                FilterExample { filter: "tcp.port == 6379",  desc: "Redis 端口" },
-                FilterExample { filter: "tcp.port == 8080",  desc: "常用 HTTP 备用端口" },
-                FilterExample { filter: "tcp.dstport == 443", desc: "目标端口为 443（HTTPS 请求方）" },
-                FilterExample { filter: "tcp.srcport == 443", desc: "源端口为 443（HTTPS 响应方）" },
-                FilterExample { filter: "udp.port == 53",    desc: "DNS（UDP）端口" },
-                FilterExample { filter: "udp.port == 67 or udp.port == 68", desc: "DHCP 端口（服务器/客户端）" },
-                FilterExample { filter: "tcp.port >= 1024 and tcp.port <= 65535", desc: "非特权端口范围" },
+                FilterExample {
+                    filter: "tcp.port == 80",
+                    desc: "HTTP 端口（源或目标）",
+                },
+                FilterExample {
+                    filter: "tcp.port == 443",
+                    desc: "HTTPS 端口",
+                },
+                FilterExample {
+                    filter: "tcp.port == 22",
+                    desc: "SSH 端口",
+                },
+                FilterExample {
+                    filter: "tcp.port == 3306",
+                    desc: "MySQL 端口",
+                },
+                FilterExample {
+                    filter: "tcp.port == 5432",
+                    desc: "PostgreSQL 端口",
+                },
+                FilterExample {
+                    filter: "tcp.port == 6379",
+                    desc: "Redis 端口",
+                },
+                FilterExample {
+                    filter: "tcp.port == 8080",
+                    desc: "常用 HTTP 备用端口",
+                },
+                FilterExample {
+                    filter: "tcp.dstport == 443",
+                    desc: "目标端口为 443（HTTPS 请求方）",
+                },
+                FilterExample {
+                    filter: "tcp.srcport == 443",
+                    desc: "源端口为 443（HTTPS 响应方）",
+                },
+                FilterExample {
+                    filter: "udp.port == 53",
+                    desc: "DNS（UDP）端口",
+                },
+                FilterExample {
+                    filter: "udp.port == 67 or udp.port == 68",
+                    desc: "DHCP 端口（服务器/客户端）",
+                },
+                FilterExample {
+                    filter: "tcp.port >= 1024 and tcp.port <= 65535",
+                    desc: "非特权端口范围",
+                },
             ],
         },
         FilterSection {
             title: "TCP 标志位过滤",
             icon: "🚩",
             items: vec![
-                FilterExample { filter: "tcp.flags.syn == 1 and tcp.flags.ack == 0", desc: "TCP 连接请求（SYN 包，三次握手第一步）" },
-                FilterExample { filter: "tcp.flags.syn == 1 and tcp.flags.ack == 1", desc: "TCP 连接确认（SYN-ACK，第二步）" },
-                FilterExample { filter: "tcp.flags.fin == 1",  desc: "TCP 连接正常关闭（FIN 包）" },
-                FilterExample { filter: "tcp.flags.rst == 1",  desc: "TCP 连接被强制重置（RST 包，异常断开）" },
-                FilterExample { filter: "tcp.flags.push == 1", desc: "PSH 标志——立即推送数据" },
-                FilterExample { filter: "tcp.flags.urg == 1",  desc: "URG 紧急数据" },
-                FilterExample { filter: "tcp.flags == 0x002",  desc: "纯 SYN 包（十六进制标志匹配）" },
-                FilterExample { filter: "tcp.flags == 0x012",  desc: "SYN-ACK 包" },
-                FilterExample { filter: "tcp.flags == 0x010",  desc: "纯 ACK 包" },
-                FilterExample { filter: "tcp.analysis.retransmission", desc: "TCP 重传包（网络质量差）" },
-                FilterExample { filter: "tcp.analysis.duplicate_ack",  desc: "重复 ACK（可能有丢包）" },
-                FilterExample { filter: "tcp.analysis.zero_window",    desc: "TCP 窗口为零（接收方缓冲区满）" },
-                FilterExample { filter: "tcp.analysis.fast_retransmission", desc: "快速重传" },
+                FilterExample {
+                    filter: "tcp.flags.syn == 1 and tcp.flags.ack == 0",
+                    desc: "TCP 连接请求（SYN 包，三次握手第一步）",
+                },
+                FilterExample {
+                    filter: "tcp.flags.syn == 1 and tcp.flags.ack == 1",
+                    desc: "TCP 连接确认（SYN-ACK，第二步）",
+                },
+                FilterExample {
+                    filter: "tcp.flags.fin == 1",
+                    desc: "TCP 连接正常关闭（FIN 包）",
+                },
+                FilterExample {
+                    filter: "tcp.flags.rst == 1",
+                    desc: "TCP 连接被强制重置（RST 包，异常断开）",
+                },
+                FilterExample {
+                    filter: "tcp.flags.push == 1",
+                    desc: "PSH 标志——立即推送数据",
+                },
+                FilterExample {
+                    filter: "tcp.flags.urg == 1",
+                    desc: "URG 紧急数据",
+                },
+                FilterExample {
+                    filter: "tcp.flags == 0x002",
+                    desc: "纯 SYN 包（十六进制标志匹配）",
+                },
+                FilterExample {
+                    filter: "tcp.flags == 0x012",
+                    desc: "SYN-ACK 包",
+                },
+                FilterExample {
+                    filter: "tcp.flags == 0x010",
+                    desc: "纯 ACK 包",
+                },
+                FilterExample {
+                    filter: "tcp.analysis.retransmission",
+                    desc: "TCP 重传包（网络质量差）",
+                },
+                FilterExample {
+                    filter: "tcp.analysis.duplicate_ack",
+                    desc: "重复 ACK（可能有丢包）",
+                },
+                FilterExample {
+                    filter: "tcp.analysis.zero_window",
+                    desc: "TCP 窗口为零（接收方缓冲区满）",
+                },
+                FilterExample {
+                    filter: "tcp.analysis.fast_retransmission",
+                    desc: "快速重传",
+                },
             ],
         },
         FilterSection {
             title: "HTTP 过滤",
             icon: "🌍",
             items: vec![
-                FilterExample { filter: "http.request",                  desc: "所有 HTTP 请求" },
-                FilterExample { filter: "http.response",                 desc: "所有 HTTP 响应" },
-                FilterExample { filter: "http.request.method == \"GET\"",  desc: "HTTP GET 请求" },
-                FilterExample { filter: "http.request.method == \"POST\"", desc: "HTTP POST 请求" },
-                FilterExample { filter: "http.request.method == \"PUT\"",  desc: "HTTP PUT 请求" },
-                FilterExample { filter: "http.response.code == 200",     desc: "HTTP 200 成功响应" },
-                FilterExample { filter: "http.response.code == 404",     desc: "HTTP 404 未找到" },
-                FilterExample { filter: "http.response.code == 500",     desc: "HTTP 500 服务器错误" },
-                FilterExample { filter: "http.response.code >= 400",     desc: "所有 HTTP 错误响应（4xx/5xx）" },
-                FilterExample { filter: "http.host contains \"example.com\"", desc: "请求特定域名" },
-                FilterExample { filter: "http.request.uri contains \"/api\"", desc: "URL 路径包含 /api" },
-                FilterExample { filter: "http.content_type contains \"json\"", desc: "JSON 格式响应" },
-                FilterExample { filter: "http.authorization",            desc: "携带 Authorization 头部的请求" },
-                FilterExample { filter: "http.cookie",                   desc: "携带 Cookie 的请求" },
-                FilterExample { filter: "http.set_cookie",               desc: "服务器设置 Cookie 的响应" },
-                FilterExample { filter: "http.user_agent contains \"curl\"", desc: "curl 工具发出的请求" },
+                FilterExample {
+                    filter: "http.request",
+                    desc: "所有 HTTP 请求",
+                },
+                FilterExample {
+                    filter: "http.response",
+                    desc: "所有 HTTP 响应",
+                },
+                FilterExample {
+                    filter: "http.request.method == \"GET\"",
+                    desc: "HTTP GET 请求",
+                },
+                FilterExample {
+                    filter: "http.request.method == \"POST\"",
+                    desc: "HTTP POST 请求",
+                },
+                FilterExample {
+                    filter: "http.request.method == \"PUT\"",
+                    desc: "HTTP PUT 请求",
+                },
+                FilterExample {
+                    filter: "http.response.code == 200",
+                    desc: "HTTP 200 成功响应",
+                },
+                FilterExample {
+                    filter: "http.response.code == 404",
+                    desc: "HTTP 404 未找到",
+                },
+                FilterExample {
+                    filter: "http.response.code == 500",
+                    desc: "HTTP 500 服务器错误",
+                },
+                FilterExample {
+                    filter: "http.response.code >= 400",
+                    desc: "所有 HTTP 错误响应（4xx/5xx）",
+                },
+                FilterExample {
+                    filter: "http.host contains \"example.com\"",
+                    desc: "请求特定域名",
+                },
+                FilterExample {
+                    filter: "http.request.uri contains \"/api\"",
+                    desc: "URL 路径包含 /api",
+                },
+                FilterExample {
+                    filter: "http.content_type contains \"json\"",
+                    desc: "JSON 格式响应",
+                },
+                FilterExample {
+                    filter: "http.authorization",
+                    desc: "携带 Authorization 头部的请求",
+                },
+                FilterExample {
+                    filter: "http.cookie",
+                    desc: "携带 Cookie 的请求",
+                },
+                FilterExample {
+                    filter: "http.set_cookie",
+                    desc: "服务器设置 Cookie 的响应",
+                },
+                FilterExample {
+                    filter: "http.user_agent contains \"curl\"",
+                    desc: "curl 工具发出的请求",
+                },
             ],
         },
         FilterSection {
             title: "DNS 过滤",
             icon: "🔤",
             items: vec![
-                FilterExample { filter: "dns",                               desc: "所有 DNS 流量" },
-                FilterExample { filter: "dns.qry.name == \"example.com\"",   desc: "查询特定域名" },
-                FilterExample { filter: "dns.qry.name contains \"google\"",  desc: "域名包含关键词" },
-                FilterExample { filter: "dns.flags.response == 0",           desc: "DNS 查询（请求方向）" },
-                FilterExample { filter: "dns.flags.response == 1",           desc: "DNS 响应（回答方向）" },
-                FilterExample { filter: "dns.flags.rcode != 0",              desc: "DNS 错误响应（NXDOMAIN/SERVFAIL 等）" },
-                FilterExample { filter: "dns.flags.rcode == 3",              desc: "NXDOMAIN——域名不存在" },
-                FilterExample { filter: "dns.qry.type == 1",                 desc: "A 记录查询（IPv4）" },
-                FilterExample { filter: "dns.qry.type == 28",                desc: "AAAA 记录查询（IPv6）" },
-                FilterExample { filter: "dns.qry.type == 15",                desc: "MX 邮件交换记录查询" },
-                FilterExample { filter: "dns.qry.type == 16",                desc: "TXT 记录查询" },
-                FilterExample { filter: "dns.a == 1.1.1.1",                  desc: "解析结果为指定 IP" },
+                FilterExample {
+                    filter: "dns",
+                    desc: "所有 DNS 流量",
+                },
+                FilterExample {
+                    filter: "dns.qry.name == \"example.com\"",
+                    desc: "查询特定域名",
+                },
+                FilterExample {
+                    filter: "dns.qry.name contains \"google\"",
+                    desc: "域名包含关键词",
+                },
+                FilterExample {
+                    filter: "dns.flags.response == 0",
+                    desc: "DNS 查询（请求方向）",
+                },
+                FilterExample {
+                    filter: "dns.flags.response == 1",
+                    desc: "DNS 响应（回答方向）",
+                },
+                FilterExample {
+                    filter: "dns.flags.rcode != 0",
+                    desc: "DNS 错误响应（NXDOMAIN/SERVFAIL 等）",
+                },
+                FilterExample {
+                    filter: "dns.flags.rcode == 3",
+                    desc: "NXDOMAIN——域名不存在",
+                },
+                FilterExample {
+                    filter: "dns.qry.type == 1",
+                    desc: "A 记录查询（IPv4）",
+                },
+                FilterExample {
+                    filter: "dns.qry.type == 28",
+                    desc: "AAAA 记录查询（IPv6）",
+                },
+                FilterExample {
+                    filter: "dns.qry.type == 15",
+                    desc: "MX 邮件交换记录查询",
+                },
+                FilterExample {
+                    filter: "dns.qry.type == 16",
+                    desc: "TXT 记录查询",
+                },
+                FilterExample {
+                    filter: "dns.a == 1.1.1.1",
+                    desc: "解析结果为指定 IP",
+                },
             ],
         },
         FilterSection {
             title: "TLS/SSL 过滤",
             icon: "🔒",
             items: vec![
-                FilterExample { filter: "tls",                      desc: "所有 TLS 流量" },
-                FilterExample { filter: "tls.handshake",            desc: "TLS 握手包" },
-                FilterExample { filter: "tls.handshake.type == 1",  desc: "TLS Client Hello（客户端发起）" },
-                FilterExample { filter: "tls.handshake.type == 2",  desc: "TLS Server Hello（服务端回应）" },
-                FilterExample { filter: "tls.handshake.type == 11", desc: "TLS Certificate（证书交换）" },
-                FilterExample { filter: "tls.alert",                desc: "TLS 警告/错误包" },
-                FilterExample { filter: "tls.record.content_type == 23", desc: "TLS Application Data（加密数据）" },
-                FilterExample { filter: "ssl.handshake.extensions_server_name contains \"example.com\"", desc: "SNI 服务器名称指示" },
+                FilterExample {
+                    filter: "tls",
+                    desc: "所有 TLS 流量",
+                },
+                FilterExample {
+                    filter: "tls.handshake",
+                    desc: "TLS 握手包",
+                },
+                FilterExample {
+                    filter: "tls.handshake.type == 1",
+                    desc: "TLS Client Hello（客户端发起）",
+                },
+                FilterExample {
+                    filter: "tls.handshake.type == 2",
+                    desc: "TLS Server Hello（服务端回应）",
+                },
+                FilterExample {
+                    filter: "tls.handshake.type == 11",
+                    desc: "TLS Certificate（证书交换）",
+                },
+                FilterExample {
+                    filter: "tls.alert",
+                    desc: "TLS 警告/错误包",
+                },
+                FilterExample {
+                    filter: "tls.record.content_type == 23",
+                    desc: "TLS Application Data（加密数据）",
+                },
+                FilterExample {
+                    filter: "ssl.handshake.extensions_server_name contains \"example.com\"",
+                    desc: "SNI 服务器名称指示",
+                },
             ],
         },
         FilterSection {
             title: "逻辑运算符",
             icon: "🔣",
             items: vec![
-                FilterExample { filter: "tcp and http",                      desc: "AND：同时满足两个条件" },
-                FilterExample { filter: "http or dns",                       desc: "OR：满足任意一个条件" },
-                FilterExample { filter: "not arp",                           desc: "NOT：排除某类包" },
-                FilterExample { filter: "!(ip.addr == 192.168.1.1)",         desc: "NOT（括号形式）" },
-                FilterExample { filter: "tcp.port == 80 and http.request",   desc: "80 端口的 HTTP 请求" },
-                FilterExample { filter: "dns or (tcp.port == 53)",           desc: "所有 DNS（UDP+TCP）" },
-                FilterExample { filter: "ip.src == 10.0.0.1 and (tcp or udp)", desc: "某 IP 的 TCP 和 UDP 流量" },
-                FilterExample { filter: "(http or dns) and not ip.addr == 127.0.0.1", desc: "排除本地回环的 HTTP/DNS" },
+                FilterExample {
+                    filter: "tcp and http",
+                    desc: "AND：同时满足两个条件",
+                },
+                FilterExample {
+                    filter: "http or dns",
+                    desc: "OR：满足任意一个条件",
+                },
+                FilterExample {
+                    filter: "not arp",
+                    desc: "NOT：排除某类包",
+                },
+                FilterExample {
+                    filter: "!(ip.addr == 192.168.1.1)",
+                    desc: "NOT（括号形式）",
+                },
+                FilterExample {
+                    filter: "tcp.port == 80 and http.request",
+                    desc: "80 端口的 HTTP 请求",
+                },
+                FilterExample {
+                    filter: "dns or (tcp.port == 53)",
+                    desc: "所有 DNS（UDP+TCP）",
+                },
+                FilterExample {
+                    filter: "ip.src == 10.0.0.1 and (tcp or udp)",
+                    desc: "某 IP 的 TCP 和 UDP 流量",
+                },
+                FilterExample {
+                    filter: "(http or dns) and not ip.addr == 127.0.0.1",
+                    desc: "排除本地回环的 HTTP/DNS",
+                },
             ],
         },
         FilterSection {
             title: "比较运算符",
             icon: "⚖️",
             items: vec![
-                FilterExample { filter: "frame.len > 1000",          desc: "包长度大于 1000 字节" },
-                FilterExample { filter: "frame.len < 100",           desc: "包长度小于 100 字节（可能是控制包）" },
-                FilterExample { filter: "frame.len == 60",           desc: "包长度精确等于 60 字节" },
-                FilterExample { filter: "tcp.len > 0",               desc: "包含 TCP 数据（非纯 ACK）" },
-                FilterExample { filter: "ip.ttl < 10",               desc: "TTL 很小（可能经过多跳或被篡改）" },
-                FilterExample { filter: "ip.ttl == 64",              desc: "TTL = 64（Linux 默认值）" },
-                FilterExample { filter: "ip.ttl == 128",             desc: "TTL = 128（Windows 默认值）" },
-                FilterExample { filter: "tcp.window_size == 0",      desc: "TCP 窗口为零" },
-                FilterExample { filter: "tcp.seq == 0",              desc: "序列号为 0（通常是 SYN）" },
+                FilterExample {
+                    filter: "frame.len > 1000",
+                    desc: "包长度大于 1000 字节",
+                },
+                FilterExample {
+                    filter: "frame.len < 100",
+                    desc: "包长度小于 100 字节（可能是控制包）",
+                },
+                FilterExample {
+                    filter: "frame.len == 60",
+                    desc: "包长度精确等于 60 字节",
+                },
+                FilterExample {
+                    filter: "tcp.len > 0",
+                    desc: "包含 TCP 数据（非纯 ACK）",
+                },
+                FilterExample {
+                    filter: "ip.ttl < 10",
+                    desc: "TTL 很小（可能经过多跳或被篡改）",
+                },
+                FilterExample {
+                    filter: "ip.ttl == 64",
+                    desc: "TTL = 64（Linux 默认值）",
+                },
+                FilterExample {
+                    filter: "ip.ttl == 128",
+                    desc: "TTL = 128（Windows 默认值）",
+                },
+                FilterExample {
+                    filter: "tcp.window_size == 0",
+                    desc: "TCP 窗口为零",
+                },
+                FilterExample {
+                    filter: "tcp.seq == 0",
+                    desc: "序列号为 0（通常是 SYN）",
+                },
             ],
         },
         FilterSection {
             title: "字符串匹配",
             icon: "🔍",
             items: vec![
-                FilterExample { filter: "frame contains \"password\"",       desc: "整个包内容包含 password（明文搜索）" },
-                FilterExample { filter: "http contains \"login\"",           desc: "HTTP 包含 login 字符串" },
-                FilterExample { filter: "http.request.uri matches \"^/api/v[0-9]\"", desc: "URI 正则匹配 /api/vN 路径" },
-                FilterExample { filter: "dns.qry.name matches \".*\\.cn$\"", desc: "DNS 查询以 .cn 结尾的域名" },
-                FilterExample { filter: "http.host matches \"\\.(cn|com\\.cn)$\"", desc: "访问中国域名" },
+                FilterExample {
+                    filter: "frame contains \"password\"",
+                    desc: "整个包内容包含 password（明文搜索）",
+                },
+                FilterExample {
+                    filter: "http contains \"login\"",
+                    desc: "HTTP 包含 login 字符串",
+                },
+                FilterExample {
+                    filter: "http.request.uri matches \"^/api/v[0-9]\"",
+                    desc: "URI 正则匹配 /api/vN 路径",
+                },
+                FilterExample {
+                    filter: "dns.qry.name matches \".*\\.cn$\"",
+                    desc: "DNS 查询以 .cn 结尾的域名",
+                },
+                FilterExample {
+                    filter: "http.host matches \"\\.(cn|com\\.cn)$\"",
+                    desc: "访问中国域名",
+                },
             ],
         },
         FilterSection {
             title: "时间与帧编号",
             icon: "⏱️",
             items: vec![
-                FilterExample { filter: "frame.number <= 100",       desc: "前 100 个包" },
-                FilterExample { filter: "frame.number >= 500 and frame.number <= 600", desc: "第 500-600 个包" },
-                FilterExample { filter: "frame.time_relative > 5.0", desc: "捕获开始 5 秒后的包" },
-                FilterExample { filter: "frame.time_delta > 1.0",    desc: "与上一包间隔超过 1 秒（可能有延迟）" },
-                FilterExample { filter: "tcp.time_delta > 0.1",      desc: "TCP 流内响应时间超过 100ms" },
+                FilterExample {
+                    filter: "frame.number <= 100",
+                    desc: "前 100 个包",
+                },
+                FilterExample {
+                    filter: "frame.number >= 500 and frame.number <= 600",
+                    desc: "第 500-600 个包",
+                },
+                FilterExample {
+                    filter: "frame.time_relative > 5.0",
+                    desc: "捕获开始 5 秒后的包",
+                },
+                FilterExample {
+                    filter: "frame.time_delta > 1.0",
+                    desc: "与上一包间隔超过 1 秒（可能有延迟）",
+                },
+                FilterExample {
+                    filter: "tcp.time_delta > 0.1",
+                    desc: "TCP 流内响应时间超过 100ms",
+                },
             ],
         },
         FilterSection {
@@ -271,7 +625,11 @@ pub fn CaptureGuidePage() -> impl IntoView {
     let auth = use_auth();
     Effect::new(move |_| {
         if !auth.get().is_logged_in() {
-            web_sys::window().unwrap().location().set_href("/login").ok();
+            web_sys::window()
+                .unwrap()
+                .location()
+                .set_href("/login")
+                .ok();
         }
     });
 

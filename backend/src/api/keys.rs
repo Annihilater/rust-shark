@@ -4,7 +4,7 @@ use axum::{
     Extension, Json, Router,
 };
 
-use crate::api::{bad_request, internal_error, not_found, AuthUser, ApiResult};
+use crate::api::{bad_request, internal_error, not_found, ApiResult, AuthUser};
 use crate::models::ssh_key::{
     CreateSshKeyRequest, GenerateKeyRequest, GenerateKeyResponse, SshKey, SshKeyResponse,
 };
@@ -46,7 +46,14 @@ async fn create_key(
     let crypto = CryptoService::new(&state.config.secret_key).map_err(internal_error)?;
     let encrypted = crypto.encrypt(&req.private_key).map_err(internal_error)?;
 
-    let key = SshKey::new(auth.user_id, req.name, encrypted, public_key, key_type, fingerprint);
+    let key = SshKey::new(
+        auth.user_id,
+        req.name,
+        encrypted,
+        public_key,
+        key_type,
+        fingerprint,
+    );
 
     sqlx::query(
         "INSERT INTO ssh_keys (id, user_id, name, private_key_encrypted, public_key, key_type, fingerprint, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -106,7 +113,10 @@ fn classify_key_type(key: &ssh_key::PrivateKey) -> String {
         Algorithm::Rsa { .. } => {
             // 通过 RSA 私钥数据获取模数位数
             if let ssh_key::private::KeypairData::Rsa(rsa) = key.key_data() {
-                let bits = rsa.public.n.as_positive_bytes()
+                let bits = rsa
+                    .public
+                    .n
+                    .as_positive_bytes()
                     .map(|b| b.len() * 8)
                     .unwrap_or(0);
                 if bits >= 4096 {
@@ -136,9 +146,13 @@ async fn generate_key(
 
     let algorithm = match req.key_type.as_str() {
         "rsa-2048" | "rsa-4096" => Algorithm::Rsa { hash: None },
-        "ecdsa-p256"             => Algorithm::Ecdsa { curve: EcdsaCurve::NistP256 },
-        "ecdsa-p384"             => Algorithm::Ecdsa { curve: EcdsaCurve::NistP384 },
-        _                        => Algorithm::Ed25519,
+        "ecdsa-p256" => Algorithm::Ecdsa {
+            curve: EcdsaCurve::NistP256,
+        },
+        "ecdsa-p384" => Algorithm::Ecdsa {
+            curve: EcdsaCurve::NistP384,
+        },
+        _ => Algorithm::Ed25519,
     };
 
     let mut private_key = if req.key_type == "rsa-4096" {
@@ -197,9 +211,7 @@ async fn generate_key(
 
     let key_response: SshKeyResponse = key.into();
 
-    Ok(Json(GenerateKeyResponse {
-        key: key_response,
-    }))
+    Ok(Json(GenerateKeyResponse { key: key_response }))
 }
 
 /// 生成指定位数的 RSA 私钥
