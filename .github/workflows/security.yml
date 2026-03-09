@@ -32,7 +32,10 @@ jobs:
         uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          # 使用项目根目录的 audit.toml 配置（ignore 列表、informational 级别等）
+          # RUSTSEC-2023-0071：rsa crate Marvin Attack 计时侧信道
+          # 来源：ssh-key crate rsa feature（SSH 密钥管理功能）
+          # 无补丁，本地操作场景风险可接受，详见 audit.toml
+          ignore: RUSTSEC-2023-0071
 
   # ─── 依赖许可证合规检查 ──────────────────────────────────────────────────────
   deny:
