@@ -10,6 +10,7 @@ on:
     paths:
       - "**/Cargo.lock"
       - "**/Cargo.toml"
+      - "audit.toml"
   workflow_dispatch:  # 支持手动触发
 
 concurrency:
@@ -21,6 +22,9 @@ jobs:
   audit:
     name: 依赖安全审计
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write   # rustsec/audit-check 创建 Check Run 所必须
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +32,7 @@ jobs:
         uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # 使用项目根目录的 audit.toml 配置（ignore 列表、informational 级别等）
 
   # ─── 依赖许可证合规检查 ──────────────────────────────────────────────────────
   deny:
