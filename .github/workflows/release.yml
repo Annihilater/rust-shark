@@ -278,8 +278,10 @@ jobs:
           # 配置模板
           cp .env.example "${DEPLOY_NAME}/.env.example"
 
-          # Docker 部署文件
-          cp deploy/docker-compose.yml "${DEPLOY_NAME}/docker-compose.yml"
+          # Docker 部署文件：将镜像 tag 从 :latest 替换为当前发布版本号
+          # 避免部署包在服务器上因使用缓存旧镜像而失败
+          sed "s|ghcr.io/annihilater/rust-shark:latest|ghcr.io/annihilater/rust-shark:${VERSION#v}|g" \
+            deploy/docker-compose.yml > "${DEPLOY_NAME}/docker-compose.yml"
 
           # 运维脚本
           for script in common start stop restart logs status; do
