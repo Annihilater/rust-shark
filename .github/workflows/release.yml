@@ -123,9 +123,11 @@ jobs:
         include:
           - target: x86_64-unknown-linux-musl
             artifact: rust-shark-linux-amd64
+            artifact_suffix: linux-amd64
             cross: true
           - target: aarch64-unknown-linux-musl
             artifact: rust-shark-linux-arm64
+            artifact_suffix: linux-arm64
             cross: true
 
     steps:
@@ -171,13 +173,136 @@ jobs:
           # 验证是静态链接
           file ${{ matrix.artifact }}
 
-      - name: 压缩产物并生成校验和
+      - name: 组装完整部署包
         run: |
-          tar czf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
-          sha256sum ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
-          sha256sum ${{ matrix.artifact }}.tar.gz >> ${{ matrix.artifact }}.sha256
+          VERSION="${GITHUB_REF_NAME}"
+          DEPLOY_NAME="rust-shark-deploy-${VERSION}-${{ matrix.artifact_suffix }}"
+          mkdir -p "${DEPLOY_NAME}"
+
+          # ── 主二进制 ──
+          cp "${{ matrix.artifact }}" "${DEPLOY_NAME}/rust-shark"
+          chmod +x "${DEPLOY_NAME}/rust-shark"
+
+          # ── 配置模板 ──
+          cp .env.example "${DEPLOY_NAME}/.env.example"
+
+          # ── Docker 部署支持 ──
+          cp deploy/docker-compose.yml "${DEPLOY_NAME}/docker-compose.yml"
+          cp deploy/common.sh          "${DEPLOY_NAME}/common.sh"
+          cp deploy/start.sh           "${DEPLOY_NAME}/start.sh"
+          cp deploy/stop.sh            "${DEPLOY_NAME}/stop.sh"
+          cp deploy/restart.sh         "${DEPLOY_NAME}/restart.sh"
+          cp deploy/logs.sh            "${DEPLOY_NAME}/logs.sh"
+          cp deploy/status.sh          "${DEPLOY_NAME}/status.sh"
+          chmod +x "${DEPLOY_NAME}"/*.sh
+
+          # ── 生成 README.md ──
+          cat > "${DEPLOY_NAME}/README.md" << READMEEOF
+          # rust-shark ${VERSION} 部署指南
+
+          ## 目录结构
+
+          \`\`\`
+          rust-shark-deploy-${VERSION}-${{ matrix.artifact_suffix }}/
+          ├── rust-shark          # 主程序（静态链接，开箱即用）
+          ├── .env.example        # 配置模板（复制为 .env 后修改）
+          ├── docker-compose.yml  # Docker 部署配置
+          ├── common.sh           # 公共函数（被其他脚本引用）
+          ├── start.sh            # 启动服务
+          ├── stop.sh             # 停止服务
+          ├── restart.sh          # 重启服务
+          ├── logs.sh             # 查看日志
+          ├── status.sh           # 查看状态
+          └── README.md           # 本文件
+          \`\`\`
+
+          ---
+
+          ## 方式一：直接运行（推荐）
+
+          \`\`\`bash
+          # 1. 复制配置模板
+          cp .env.example .env
+
+          # 2. 按需修改配置（重点：SECRET_KEY、JWT_SECRET、ADMIN_PASSWORD）
+          vim .env
+
+          # 3. 赋予执行权限并启动
+          chmod +x rust-shark
+          ./rust-shark
+          \`\`\`
+
+          首次启动会自动：
+          - 创建数据库（SQLite）
+          - 根据 .env 中的 ADMIN_EMAIL / ADMIN_PASSWORD 创建管理员账号
+
+          访问地址：**http://\<服务器IP\>:\<PORT\>**（默认端口 17823）
+
+          ---
+
+          ## 方式二：Docker Compose 部署
+
+          \`\`\`bash
+          # 1. 复制并修改配置
+          cp .env.example .env
+          vim .env
+
+          # 2. 启动
+          ./start.sh
+
+          # 3. 其他操作
+          ./stop.sh      # 停止
+          ./restart.sh   # 重启
+          ./logs.sh      # 查看日志（Ctrl+C 退出）
+          ./status.sh    # 查看容器状态
+          \`\`\`
+
+          ---
+
+          ## 关键配置说明
+
+          | 变量 | 说明 | 默认值 |
+          |------|------|--------|
+          | \`PORT\` | 监听端口 | \`17823\` |
+          | \`SECRET_KEY\` | 数据加密密钥（**必须修改**，32 字符以上） | 占位符 |
+          | \`JWT_SECRET\` | JWT 签名密钥（**必须修改**，32 字符以上） | 占位符 |
+          | \`ADMIN_EMAIL\` | 管理员登录邮箱 | \`admin@example.com\` |
+          | \`ADMIN_PASSWORD\` | 管理员密码（修改后重启自动生效） | \`Admin@123456\` |
+          | \`ADMIN_NAME\` | 管理员显示名称 | \`Administrator\` |
+          | \`RUST_LOG\` | 日志级别（\`debug\`/\`info\`/\`warn\`/\`error\`） | \`info\` |
+
+          > ⚠ **安全提醒**：生产环境务必修改 \`SECRET_KEY\`、\`JWT_SECRET\` 和 \`ADMIN_PASSWORD\`，
+          > 并确保 \`.env\` 文件权限为 \`600\`（\`chmod 600 .env\`）。
+
+          ---
+
+          ## 重置管理员密码
+
+          1. 修改 \`.env\` 中的 \`ADMIN_PASSWORD\`
+          2. 重启服务（\`./restart.sh\` 或重新运行 \`./rust-shark\`）
+          3. 程序启动时自动检测到密码不一致，将数据库中的密码重置为新值
+
+          ---
+
+          ## 系统要求
+
+          - Linux ${{ matrix.artifact_suffix == 'linux-amd64' && 'x86_64 (amd64)' || 'ARM64 (aarch64)' }}
+          - 无其他运行时依赖（静态链接二进制）
+          - 如需网络抓包功能，目标服务器需安装 \`tcpdump\`
+
+          READMEEOF
+
+          # ── 打包 ──
+          tar czf "${DEPLOY_NAME}.tar.gz" "${DEPLOY_NAME}"
+          sha256sum "${DEPLOY_NAME}.tar.gz" > "${DEPLOY_NAME}.tar.gz.sha256"
+
+          echo "--- 部署包内容 ---"
+          ls -lh "${DEPLOY_NAME}/"
           echo "--- SHA256 ---"
-          cat ${{ matrix.artifact }}.sha256
+          cat "${DEPLOY_NAME}.tar.gz.sha256"
+
+          # 同时保留纯二进制（兼容旧版用法）
+          sha256sum "${{ matrix.artifact }}" > "${{ matrix.artifact }}.sha256"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
@@ -185,8 +310,9 @@ jobs:
           name: ${{ matrix.artifact }}
           path: |
             ${{ matrix.artifact }}
-            ${{ matrix.artifact }}.tar.gz
             ${{ matrix.artifact }}.sha256
+            rust-shark-deploy-*-${{ matrix.artifact_suffix }}.tar.gz
+            rust-shark-deploy-*-${{ matrix.artifact_suffix }}.tar.gz.sha256
           retention-days: 7
 
   # ─── 第四步：构建并推送 Docker 镜像 ───────────────────────────────────────────
@@ -288,18 +414,18 @@ jobs:
           if [ "$DOCKER_STATUS" = "success" ]; then
             DOCKER_SECTION=$(cat << DOCKEREOF
 
-          ### Docker
+          ### Docker 部署
 
           \`\`\`bash
           # 拉取镜像
           docker pull ghcr.io/${{ github.repository }}:${VERSION}
 
-          # 运行
+          # 运行（需提前准备 .env 文件）
           docker run -d \\
-            -p 3000:3000 \\
+            --name rust-shark \\
+            -p 17823:17823 \\
             -v ./data:/app/data \\
-            -e SECRET_KEY=your-secret-key \\
-            -e JWT_SECRET=your-jwt-secret \\
+            --env-file .env \\
             ghcr.io/${{ github.repository }}:${VERSION}
           \`\`\`
           DOCKEREOF
@@ -311,20 +437,37 @@ jobs:
 
           ### 下载
 
-          | 平台 | 文件 | 说明 |
-          |------|------|------|
-          | Linux x86_64 | \`rust-shark-linux-amd64\` | 静态链接，开箱即用 |
-          | Linux ARM64  | \`rust-shark-linux-arm64\` | 适用于 ARM 服务器 / 树莓派 |
+          推荐下载**完整部署包**（含二进制、配置模板、部署脚本、使用文档）：
 
-          ### 快速部署
+          | 平台 | 部署包（推荐） | 纯二进制 |
+          |------|--------------|---------|
+          | Linux x86_64 | \`rust-shark-deploy-${VERSION}-linux-amd64.tar.gz\` | \`rust-shark-linux-amd64\` |
+          | Linux ARM64  | \`rust-shark-deploy-${VERSION}-linux-arm64.tar.gz\`  | \`rust-shark-linux-arm64\`  |
+
+          ### 快速部署（完整部署包）
 
           \`\`\`bash
-          # Linux x86_64
-          wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/rust-shark-linux-amd64
-          chmod +x rust-shark-linux-amd64
-          ./rust-shark-linux-amd64
+          # Linux x86_64 示例
+          wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/rust-shark-deploy-${VERSION}-linux-amd64.tar.gz
+          tar xzf rust-shark-deploy-${VERSION}-linux-amd64.tar.gz
+          cd rust-shark-deploy-${VERSION}-linux-amd64
+
+          # 复制并修改配置（务必修改 SECRET_KEY、JWT_SECRET、ADMIN_PASSWORD）
+          cp .env.example .env
+          vim .env
+
+          # 直接运行
+          ./rust-shark
+
+          # 或使用 Docker Compose
+          ./start.sh
           \`\`\`
           ${DOCKER_SECTION}
+
+          ### 管理员账号
+
+          首次启动自动根据 \`.env\` 中的 \`ADMIN_EMAIL\` / \`ADMIN_PASSWORD\` 创建管理员。
+          忘记密码时，修改 \`.env\` 中的 \`ADMIN_PASSWORD\` 后重启服务即可自动重置。
 
           ### SHA256 校验
 
@@ -343,7 +486,9 @@ jobs:
           files: |
             release/rust-shark-linux-amd64
             release/rust-shark-linux-arm64
-            release/rust-shark-linux-amd64.tar.gz
-            release/rust-shark-linux-arm64.tar.gz
             release/rust-shark-linux-amd64.sha256
             release/rust-shark-linux-arm64.sha256
+            release/rust-shark-deploy-*-linux-amd64.tar.gz
+            release/rust-shark-deploy-*-linux-amd64.tar.gz.sha256
+            release/rust-shark-deploy-*-linux-arm64.tar.gz
+            release/rust-shark-deploy-*-linux-arm64.tar.gz.sha256
