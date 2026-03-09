@@ -405,6 +405,16 @@ jobs:
           cp docker-context/rust-shark-linux-arm64 rust-shark-linux-arm64
           chmod +x rust-shark-linux-amd64 rust-shark-linux-arm64
           ls -lh rust-shark-linux-*
+          # 验证必须是静态链接（musl），否则 Docker 镜像在旧 glibc 系统上会崩溃
+          file rust-shark-linux-amd64
+          file rust-shark-linux-arm64
+          if file rust-shark-linux-amd64 | grep -q "dynamically linked"; then
+            echo "❌ amd64 二进制是动态链接，拒绝打包进 Docker 镜像！" && exit 1
+          fi
+          if file rust-shark-linux-arm64 | grep -q "dynamically linked"; then
+            echo "❌ arm64 二进制是动态链接，拒绝打包进 Docker 镜像！" && exit 1
+          fi
+          echo "✓ 两个二进制均为静态链接，可安全打包"
 
       - name: 设置 QEMU（多平台 manifest 需要，但不再用于编译）
         uses: docker/setup-qemu-action@v3
