@@ -2,7 +2,7 @@ name: Security Audit
 
 # ── 触发条件 ───────────────────────────────────────────────────────────────────
 # 1. 每周一 UTC 02:00 定期扫描（覆盖新披露的 CVE）
-# 2. Cargo.lock 发生变更时立即扫描（依赖更新后守门）
+# 2. 相关文件变更时立即扫描
 on:
   schedule:
     - cron: "0 2 * * 1"  # 每周一 02:00 UTC
@@ -20,23 +20,67 @@ concurrency:
 
 jobs:
   # ─── Cargo 依赖安全审计（RustSec Advisory Database）─────────────────────────
+  # 使用原生 cargo audit 命令，不依赖 rustsec/audit-check action
+  # 原因：rustsec/audit-check@v2 在 push/schedule/workflow_dispatch 场景下
+  # 会尝试更新不存在的 Check Run，报 "Not Found" 错误，与漏洞检查本身无关
   audit:
     name: 依赖安全审计
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: write   # rustsec/audit-check 创建 Check Run 所必须
     steps:
       - uses: actions/checkout@v4
 
-      - name: 运行 cargo-audit
-        uses: rustsec/audit-check@v2
+      - name: 安装 Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 Cargo 依赖
+        uses: Swatinem/rust-cache@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # RUSTSEC-2023-0071：rsa crate Marvin Attack 计时侧信道
-          # 来源：ssh-key crate rsa feature（SSH 密钥管理功能）
-          # 无补丁，本地操作场景风险可接受，详见 audit.toml
-          ignore: RUSTSEC-2023-0071
+          key: audit
+
+      - name: 安装 cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: 运行安全审计
+        # --ignore RUSTSEC-2023-0071：rsa Marvin Attack 计时侧信道
+        #   来源：ssh-key crate rsa feature（SSH 密钥管理功能）
+        #   官方暂无补丁，本地操作场景风险可接受，详见 audit.toml
+        # -D warnings：将 unmaintained 等信息类警告降为非阻塞（只报告，不失败）
+        run: |
+          cargo audit \
+            --ignore RUSTSEC-2023-0071 \
+            --json 2>/dev/null \
+            | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          vulns = data['vulnerabilities']
+          warnings = data.get('warnings', {})
+
+          print(f'=== 安全审计报告 ===')
+          print(f'已扫描依赖数：{data[\"lockfile\"][\"dependency-count\"]}')
+          print(f'漏洞库版本：{data[\"database\"][\"last-updated\"]}')
+          print()
+
+          if vulns['found']:
+              print(f'❌ 发现 {vulns[\"count\"]} 个漏洞：')
+              for v in vulns['list']:
+                  a = v['advisory']
+                  print(f'  [{a[\"id\"]}] {a[\"package\"]} - {a[\"title\"]}')
+                  print(f'    CVSS: {a.get(\"cvss\", \"N/A\")}  URL: {a[\"url\"]}')
+              sys.exit(1)
+          else:
+              print('✓ 未发现安全漏洞')
+
+          # 汇总 unmaintained 等信息类警告（不阻断流水线）
+          total_warnings = sum(len(v) for v in warnings.values())
+          if total_warnings:
+              print(f'⚠ {total_warnings} 个信息类警告（不影响构建）：')
+              for kind, items in warnings.items():
+                  for w in items:
+                      a = w['advisory']
+                      print(f'  [{kind}] {a[\"package\"]} ({w[\"package\"][\"version\"]}) - {a[\"title\"]}')
+          " || cargo audit --ignore RUSTSEC-2023-0071
 
   # ─── 依赖许可证合规检查 ──────────────────────────────────────────────────────
   deny:
