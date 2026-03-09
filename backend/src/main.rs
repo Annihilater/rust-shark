@@ -36,6 +36,9 @@ async fn main() -> Result<()> {
     let pool = db::init(&cfg.database_url).await?;
     info!("数据库初始化完成");
 
+    // 同步管理员账号（确保 .env 中配置的管理员始终有效）
+    services::admin_sync::sync_admin(&pool, &cfg).await?;
+
     // 构建应用状态
     let state = AppState::new(pool, cfg.clone());
 

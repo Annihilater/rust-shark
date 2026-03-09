@@ -1,3 +1,4 @@
+pub mod admin_sync;
 pub mod auth;
 pub mod capture;
 pub mod crypto;

@@ -9,6 +9,12 @@ pub struct Config {
     pub jwt_secret: String,
     pub jwt_expiry_hours: u64,
     pub data_dir: String,
+    /// 管理员邮箱，启动时自动创建/同步
+    pub admin_email: String,
+    /// 管理员密码（明文），启动时与数据库比对，不一致则重置
+    pub admin_password: String,
+    /// 管理员显示名称
+    pub admin_name: String,
 }
 
 impl Config {
@@ -28,6 +34,12 @@ impl Config {
                 .unwrap_or_else(|_| "24".to_string())
                 .parse()?,
             data_dir: std::env::var("DATA_DIR").unwrap_or_else(|_| "data".to_string()),
+            admin_email: std::env::var("ADMIN_EMAIL")
+                .unwrap_or_else(|_| "admin@example.com".to_string()),
+            admin_password: std::env::var("ADMIN_PASSWORD")
+                .unwrap_or_else(|_| "Admin@123456".to_string()),
+            admin_name: std::env::var("ADMIN_NAME")
+                .unwrap_or_else(|_| "Administrator".to_string()),
         })
     }
 }
