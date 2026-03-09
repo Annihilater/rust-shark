@@ -1,20 +1,45 @@
 name: Release
 
+# ── 触发条件 ───────────────────────────────────────────────────────────────────
+# 仅在 push tag 时触发，且依赖 CI workflow 完成（质量已由 CI 保证，此处只做构建+发布）
 on:
   push:
-    tags:
-      - "v*.*.*"
+    tags: ["v*.*.*"]
+
+# Release 不需要 concurrency 控制（tag 唯一，不存在并发冲突）
 
 env:
   CARGO_TERM_COLOR: always
-  BINARY_NAME: rust-shark
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # ─── 第一步：准备 tcpdump/sharkd 二进制 ───────────────────────────────────────
+  # ─── 前置条件：等待 CI 在同一 tag commit 上全部通过 ────────────────────────
+  # 防止直接打 tag 绕过质量门禁就发布
+  ci-gate:
+    name: 等待 CI 质量门禁
+    runs-on: ubuntu-latest
+    steps:
+      - name: 等待 CI workflow 完成
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-name: "代码检查 (fmt + clippy)"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 20
+
+      - name: 等待单元测试通过
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-name: "单元测试"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 20
+
+  # ─── 第一步：准备第三方二进制（tcpdump + sharkd）────────────────────────────
   prepare-binaries:
     name: 准备第三方二进制
+    needs: ci-gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,74 +47,72 @@ jobs:
       - name: 设置 QEMU（为 arm64 容器做准备）
         uses: docker/setup-qemu-action@v3
 
-      - name: 提取 tcpdump (amd64) — 直接从 runner apt 安装
+      - name: 提取 tcpdump amd64（从 runner 直接安装）
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y tcpdump
-          # runner 本身是 amd64，直接复制
-          TCPDUMP_PATH=$(command -v tcpdump)
-          echo "tcpdump path: $TCPDUMP_PATH"
-          cp "$TCPDUMP_PATH" assets/binaries/tcpdump-linux-amd64
+          cp "$(command -v tcpdump)" assets/binaries/tcpdump-linux-amd64
           chmod +x assets/binaries/tcpdump-linux-amd64
           file assets/binaries/tcpdump-linux-amd64
 
-      - name: 提取 tcpdump (arm64) — 通过 arm64 容器
+      - name: 提取 tcpdump arm64（通过 arm64 容器）
         run: |
           docker run --rm --platform linux/arm64 \
             -v "$PWD/assets/binaries:/out" \
             debian:bookworm \
             bash -c "
-              apt-get update -qq && \
-              apt-get install -y --no-install-recommends tcpdump && \
-              cp /usr/bin/tcpdump /out/tcpdump-linux-arm64 && \
+              apt-get update -qq &&
+              apt-get install -y --no-install-recommends tcpdump &&
+              cp /usr/bin/tcpdump /out/tcpdump-linux-arm64 &&
               chmod +x /out/tcpdump-linux-arm64
             "
           file assets/binaries/tcpdump-linux-arm64
 
-      - name: 提取 sharkd (amd64) — 直接从 runner apt 安装
+      - name: 提取 sharkd amd64
         run: |
           sudo apt-get install -y wireshark-common || true
           if command -v sharkd &>/dev/null; then
             cp "$(command -v sharkd)" assets/binaries/sharkd-linux-amd64
           else
-            echo "⚠ sharkd not found on runner, using empty placeholder"
+            echo "⚠ sharkd not found, using placeholder"
             touch assets/binaries/sharkd-linux-amd64
           fi
           chmod +x assets/binaries/sharkd-linux-amd64
 
-      - name: 提取 sharkd (arm64) — 通过 arm64 容器
+      - name: 提取 sharkd arm64
         run: |
           docker run --rm --platform linux/arm64 \
             -v "$PWD/assets/binaries:/out" \
             debian:bookworm \
             bash -c "
-              apt-get update -qq && \
-              apt-get install -y --no-install-recommends wireshark-common && \
+              apt-get update -qq &&
+              apt-get install -y --no-install-recommends wireshark-common &&
               if [ -f /usr/bin/sharkd ]; then
                 cp /usr/bin/sharkd /out/sharkd-linux-arm64 && chmod +x /out/sharkd-linux-arm64
               else
-                echo 'sharkd not found, placeholder' && touch /out/sharkd-linux-arm64
+                touch /out/sharkd-linux-arm64
               fi
             "
 
       - name: 列出产物
         run: ls -lh assets/binaries/
 
-      - name: 上传二进制文件
+      - name: 上传第三方二进制
         uses: actions/upload-artifact@v4
         with:
           name: third-party-binaries
           path: assets/binaries/
           retention-days: 1
 
-  # ─── 第二步：构建前端 WASM ─────────────────────────────────────────────────────
+  # ─── 第二步：构建前端 WASM ──────────────────────────────────────────────────
   build-frontend:
     name: 构建前端 WASM
+    needs: ci-gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 安装 Rust
+      - name: 安装 Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -97,12 +120,12 @@ jobs:
       - name: 缓存 Cargo 依赖
         uses: Swatinem/rust-cache@v2
         with:
-          key: frontend-wasm
+          key: release-frontend-wasm
 
       - name: 安装 trunk
         uses: jetli/trunk-action@v0.5.0
 
-      - name: 构建前端
+      - name: 构建前端（release 模式）
         run: cd frontend && trunk build --release
 
       - name: 上传前端产物
@@ -112,7 +135,7 @@ jobs:
           path: frontend/dist/
           retention-days: 1
 
-  # ─── 第三步：多平台后端编译 ────────────────────────────────────────────────────
+  # ─── 第三步：多平台后端交叉编译 ────────────────────────────────────────────
   build-backend:
     name: 构建后端 ${{ matrix.target }}
     needs: [prepare-binaries, build-frontend]
@@ -124,11 +147,9 @@ jobs:
           - target: x86_64-unknown-linux-musl
             artifact: rust-shark-linux-amd64
             artifact_suffix: linux-amd64
-            cross: true
           - target: aarch64-unknown-linux-musl
             artifact: rust-shark-linux-arm64
             artifact_suffix: linux-arm64
-            cross: true
 
     steps:
       - uses: actions/checkout@v4
@@ -148,7 +169,7 @@ jobs:
           name: frontend-dist
           path: frontend/dist/
 
-      - name: 安装 Rust
+      - name: 安装 Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -156,22 +177,26 @@ jobs:
       - name: 缓存 Cargo 依赖
         uses: Swatinem/rust-cache@v2
         with:
-          key: backend-${{ matrix.target }}
+          key: release-backend-${{ matrix.target }}
 
       - name: 安装 cross
         run: cargo install cross --locked
 
-      - name: 构建后端
+      - name: 交叉编译后端
         run: |
           cross build --release \
             --target ${{ matrix.target }} \
             --manifest-path backend/Cargo.toml
 
-      - name: 重命名并验证产物
+      - name: 验证产物（确认静态链接）
         run: |
           cp target/${{ matrix.target }}/release/rust-shark ${{ matrix.artifact }}
-          # 验证是静态链接
           file ${{ matrix.artifact }}
+          # 确认是静态链接（musl 产物不应有动态依赖）
+          if file ${{ matrix.artifact }} | grep -q "dynamically linked"; then
+            echo "❌ 错误：产物不是静态链接！" && exit 1
+          fi
+          echo "✓ 静态链接验证通过"
 
       - name: 组装完整部署包
         run: |
@@ -179,130 +204,107 @@ jobs:
           DEPLOY_NAME="rust-shark-deploy-${VERSION}-${{ matrix.artifact_suffix }}"
           mkdir -p "${DEPLOY_NAME}"
 
-          # ── 主二进制 ──
+          # 主二进制
           cp "${{ matrix.artifact }}" "${DEPLOY_NAME}/rust-shark"
           chmod +x "${DEPLOY_NAME}/rust-shark"
 
-          # ── 配置模板 ──
+          # 配置模板
           cp .env.example "${DEPLOY_NAME}/.env.example"
 
-          # ── Docker 部署支持 ──
+          # Docker 部署文件
           cp deploy/docker-compose.yml "${DEPLOY_NAME}/docker-compose.yml"
-          cp deploy/common.sh          "${DEPLOY_NAME}/common.sh"
-          cp deploy/start.sh           "${DEPLOY_NAME}/start.sh"
-          cp deploy/stop.sh            "${DEPLOY_NAME}/stop.sh"
-          cp deploy/restart.sh         "${DEPLOY_NAME}/restart.sh"
-          cp deploy/logs.sh            "${DEPLOY_NAME}/logs.sh"
-          cp deploy/status.sh          "${DEPLOY_NAME}/status.sh"
+
+          # 运维脚本
+          for script in common start stop restart logs status; do
+            cp "deploy/${script}.sh" "${DEPLOY_NAME}/${script}.sh"
+          done
           chmod +x "${DEPLOY_NAME}"/*.sh
 
-          # ── 生成 README.md ──
+          # 生成部署指南 README
+          ARCH="${{ matrix.artifact_suffix == 'linux-amd64' && 'x86_64 (amd64)' || 'ARM64 (aarch64)' }}"
           cat > "${DEPLOY_NAME}/README.md" << READMEEOF
-          # rust-shark ${VERSION} 部署指南
+          # rust-shark ${VERSION} — 部署指南
 
           ## 目录结构
 
           \`\`\`
-          rust-shark-deploy-${VERSION}-${{ matrix.artifact_suffix }}/
-          ├── rust-shark          # 主程序（静态链接，开箱即用）
-          ├── .env.example        # 配置模板（复制为 .env 后修改）
-          ├── docker-compose.yml  # Docker 部署配置
-          ├── common.sh           # 公共函数（被其他脚本引用）
-          ├── start.sh            # 启动服务
-          ├── stop.sh             # 停止服务
-          ├── restart.sh          # 重启服务
-          ├── logs.sh             # 查看日志
-          ├── status.sh           # 查看状态
-          └── README.md           # 本文件
+          ${DEPLOY_NAME}/
+          ├── rust-shark            # 主程序（静态链接，无运行时依赖）
+          ├── .env.example          # 配置模板 → 复制为 .env 后修改
+          ├── docker-compose.yml    # Docker Compose 部署配置
+          ├── common.sh             # 公共函数（被其他脚本引用）
+          ├── start.sh              # 启动服务
+          ├── stop.sh               # 停止服务
+          ├── restart.sh            # 重启服务
+          ├── logs.sh               # 实时查看日志
+          ├── status.sh             # 查看容器状态
+          └── README.md             # 本文件
           \`\`\`
 
           ---
 
-          ## 方式一：直接运行（推荐）
+          ## 快速开始
+
+          ### 方式一：直接运行（最简单）
 
           \`\`\`bash
-          # 1. 复制配置模板
-          cp .env.example .env
-
-          # 2. 按需修改配置（重点：SECRET_KEY、JWT_SECRET、ADMIN_PASSWORD）
-          vim .env
-
-          # 3. 赋予执行权限并启动
-          chmod +x rust-shark
-          ./rust-shark
-          \`\`\`
-
-          首次启动会自动：
-          - 创建数据库（SQLite）
-          - 根据 .env 中的 ADMIN_EMAIL / ADMIN_PASSWORD 创建管理员账号
-
-          访问地址：**http://\<服务器IP\>:\<PORT\>**（默认端口 17823）
-
-          ---
-
-          ## 方式二：Docker Compose 部署
-
-          \`\`\`bash
-          # 1. 复制并修改配置
-          cp .env.example .env
-          vim .env
+          # 1. 复制并编辑配置（务必修改 SECRET_KEY、JWT_SECRET、ADMIN_PASSWORD）
+          cp .env.example .env && vim .env
 
           # 2. 启动
-          ./start.sh
+          chmod +x rust-shark && ./rust-shark
+          \`\`\`
 
-          # 3. 其他操作
-          ./stop.sh      # 停止
-          ./restart.sh   # 重启
-          ./logs.sh      # 查看日志（Ctrl+C 退出）
-          ./status.sh    # 查看容器状态
+          访问：**http://\<IP\>:\<PORT\>**（默认端口 17823）
+
+          ### 方式二：Docker Compose
+
+          \`\`\`bash
+          cp .env.example .env && vim .env
+          ./start.sh          # 启动
+          ./logs.sh           # 查看日志（Ctrl+C 退出）
+          ./restart.sh        # 重启
+          ./stop.sh           # 停止
           \`\`\`
 
           ---
 
-          ## 关键配置说明
+          ## 关键配置
 
-          | 变量 | 说明 | 默认值 |
-          |------|------|--------|
-          | \`PORT\` | 监听端口 | \`17823\` |
-          | \`SECRET_KEY\` | 数据加密密钥（**必须修改**，32 字符以上） | 占位符 |
-          | \`JWT_SECRET\` | JWT 签名密钥（**必须修改**，32 字符以上） | 占位符 |
-          | \`ADMIN_EMAIL\` | 管理员登录邮箱 | \`admin@example.com\` |
-          | \`ADMIN_PASSWORD\` | 管理员密码（修改后重启自动生效） | \`Admin@123456\` |
-          | \`ADMIN_NAME\` | 管理员显示名称 | \`Administrator\` |
-          | \`RUST_LOG\` | 日志级别（\`debug\`/\`info\`/\`warn\`/\`error\`） | \`info\` |
+          | 变量 | 说明 | 是否必须修改 |
+          |------|------|------------|
+          | \`SECRET_KEY\` | 数据加密密钥（32字符以上） | ⚠️ **必须** |
+          | \`JWT_SECRET\` | JWT 签名密钥（32字符以上） | ⚠️ **必须** |
+          | \`ADMIN_EMAIL\` | 管理员登录邮箱 | 推荐修改 |
+          | \`ADMIN_PASSWORD\` | 管理员密码 | 推荐修改 |
+          | \`PORT\` | 监听端口（默认 17823） | 按需修改 |
+          | \`RUST_LOG\` | 日志级别 info/debug/warn | 按需修改 |
 
-          > ⚠ **安全提醒**：生产环境务必修改 \`SECRET_KEY\`、\`JWT_SECRET\` 和 \`ADMIN_PASSWORD\`，
-          > 并确保 \`.env\` 文件权限为 \`600\`（\`chmod 600 .env\`）。
-
-          ---
+          > 生产环境建议：\`chmod 600 .env\` 保护配置文件权限
 
           ## 重置管理员密码
 
-          1. 修改 \`.env\` 中的 \`ADMIN_PASSWORD\`
-          2. 重启服务（\`./restart.sh\` 或重新运行 \`./rust-shark\`）
-          3. 程序启动时自动检测到密码不一致，将数据库中的密码重置为新值
-
-          ---
+          修改 \`.env\` 中的 \`ADMIN_PASSWORD\`，重启服务即自动生效。
 
           ## 系统要求
 
-          - Linux ${{ matrix.artifact_suffix == 'linux-amd64' && 'x86_64 (amd64)' || 'ARM64 (aarch64)' }}
-          - 无其他运行时依赖（静态链接二进制）
-          - 如需网络抓包功能，目标服务器需安装 \`tcpdump\`
-
+          - Linux ${ARCH}
+          - 无其他运行时依赖（纯静态链接）
+          - 抓包功能需目标服务器已安装 \`tcpdump\`
           READMEEOF
 
-          # ── 打包 ──
+          # 打包并生成校验和
           tar czf "${DEPLOY_NAME}.tar.gz" "${DEPLOY_NAME}"
           sha256sum "${DEPLOY_NAME}.tar.gz" > "${DEPLOY_NAME}.tar.gz.sha256"
 
-          echo "--- 部署包内容 ---"
-          ls -lh "${DEPLOY_NAME}/"
-          echo "--- SHA256 ---"
-          cat "${DEPLOY_NAME}.tar.gz.sha256"
-
-          # 同时保留纯二进制（兼容旧版用法）
+          # 纯二进制校验和（兼容旧版用法）
           sha256sum "${{ matrix.artifact }}" > "${{ matrix.artifact }}.sha256"
+
+          echo "=== 部署包内容 ==="
+          ls -lh "${DEPLOY_NAME}/"
+          echo "=== SHA256 ==="
+          cat "${DEPLOY_NAME}.tar.gz.sha256"
+          cat "${{ matrix.artifact }}.sha256"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
@@ -315,7 +317,7 @@ jobs:
             rust-shark-deploy-*-${{ matrix.artifact_suffix }}.tar.gz.sha256
           retention-days: 7
 
-  # ─── 第四步：构建并推送 Docker 镜像 ───────────────────────────────────────────
+  # ─── 第四步：构建并推送多架构 Docker 镜像 ───────────────────────────────────
   build-docker:
     name: 构建 Docker 镜像
     needs: [prepare-binaries, build-frontend]
@@ -341,7 +343,7 @@ jobs:
           name: frontend-dist
           path: frontend/dist/
 
-      - name: 设置 QEMU（多平台支持）
+      - name: 设置 QEMU（多平台模拟）
         uses: docker/setup-qemu-action@v3
 
       - name: 设置 Docker Buildx
@@ -354,7 +356,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 提取 Docker 元数据
+      - name: 提取 Docker 元数据（自动生成语义化 tag）
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -363,9 +365,9 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=sha
+            type=sha,format=short
 
-      - name: 构建并推送 Docker 镜像
+      - name: 构建并推送多架构镜像
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -376,17 +378,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ─── 第五步：创建 GitHub Release ──────────────────────────────────────────────
+  # ─── 第五步：创建 GitHub Release ────────────────────────────────────────────
   release:
-    name: 发布 Release
+    name: 发布 GitHub Release
     needs: [build-backend, build-docker]
-    # 即使 build-docker 失败，只要二进制构建成功也能发布
+    # 即使 Docker 构建失败也发布二进制（Docker 失败不阻塞 Release）
     if: always() && needs.build-backend.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史，用于生成 changelog
 
       - name: 下载 amd64 产物
         uses: actions/download-artifact@v4
@@ -403,83 +407,90 @@ jobs:
       - name: 列出 release 目录
         run: ls -lh release/
 
-      - name: 生成 Release 说明
-        id: changelog
+      - name: 生成 Release Notes
+        id: notes
         run: |
           VERSION="${GITHUB_REF_NAME}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
+          # 提取距上一个 tag 的 commit 列表作为 changelog
+          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${VERSION}$" | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges | head -20)
+          fi
+
           DOCKER_STATUS="${{ needs.build-docker.result }}"
-          DOCKER_SECTION=""
+          DOCKER_NOTE=""
           if [ "$DOCKER_STATUS" = "success" ]; then
-            DOCKER_SECTION=$(cat << DOCKEREOF
+            DOCKER_NOTE=$(cat << 'DOCKEREOF'
 
-          ### Docker 部署
+          ### Docker
 
-          \`\`\`bash
-          # 拉取镜像
+          ```bash
           docker pull ghcr.io/${{ github.repository }}:${VERSION}
 
-          # 运行（需提前准备 .env 文件）
-          docker run -d \\
-            --name rust-shark \\
-            -p 17823:17823 \\
-            -v ./data:/app/data \\
-            --env-file .env \\
+          # 使用 .env 文件启动
+          docker run -d --name rust-shark \
+            -p 17823:17823 \
+            -v ./data:/app/data \
+            --env-file .env \
             ghcr.io/${{ github.repository }}:${VERSION}
-          \`\`\`
+          ```
           DOCKEREOF
           )
           fi
 
-          cat > release_notes.md << EOF
+          cat > release_notes.md << NOTESEOF
           ## rust-shark ${VERSION}
 
           ### 下载
 
-          推荐下载**完整部署包**（含二进制、配置模板、部署脚本、使用文档）：
-
-          | 平台 | 部署包（推荐） | 纯二进制 |
-          |------|--------------|---------|
+          | 平台 | 完整部署包（推荐） | 纯二进制 |
+          |------|----------------|---------|
           | Linux x86_64 | \`rust-shark-deploy-${VERSION}-linux-amd64.tar.gz\` | \`rust-shark-linux-amd64\` |
           | Linux ARM64  | \`rust-shark-deploy-${VERSION}-linux-arm64.tar.gz\`  | \`rust-shark-linux-arm64\`  |
 
-          ### 快速部署（完整部署包）
+          > 完整部署包内含：二进制 + 配置模板 + Docker Compose + 运维脚本 + 部署文档
+
+          ### 快速部署
 
           \`\`\`bash
-          # Linux x86_64 示例
+          # 下载并解压（以 amd64 为例）
           wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/rust-shark-deploy-${VERSION}-linux-amd64.tar.gz
           tar xzf rust-shark-deploy-${VERSION}-linux-amd64.tar.gz
           cd rust-shark-deploy-${VERSION}-linux-amd64
 
-          # 复制并修改配置（务必修改 SECRET_KEY、JWT_SECRET、ADMIN_PASSWORD）
-          cp .env.example .env
-          vim .env
+          # 复制配置并修改（务必改 SECRET_KEY、JWT_SECRET、ADMIN_PASSWORD）
+          cp .env.example .env && vim .env
 
-          # 直接运行
+          # 方式一：直接运行
           ./rust-shark
 
-          # 或使用 Docker Compose
+          # 方式二：Docker Compose
           ./start.sh
           \`\`\`
-          ${DOCKER_SECTION}
+          ${DOCKER_NOTE}
 
-          ### 管理员账号
+          ### 变更内容
 
-          首次启动自动根据 \`.env\` 中的 \`ADMIN_EMAIL\` / \`ADMIN_PASSWORD\` 创建管理员。
-          忘记密码时，修改 \`.env\` 中的 \`ADMIN_PASSWORD\` 后重启服务即可自动重置。
+          ${CHANGELOG}
 
-          ### SHA256 校验
+          ### SHA256 校验和
 
           \`\`\`
-          EOF
+          NOTESEOF
+
           cat release/*.sha256 >> release_notes.md
           echo '```' >> release_notes.md
+
+          cat release_notes.md
 
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "rust-shark ${{ steps.changelog.outputs.version }}"
+          name: "rust-shark ${{ steps.notes.outputs.version }}"
           body_path: release_notes.md
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
