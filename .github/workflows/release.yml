@@ -372,11 +372,12 @@ jobs:
           retention-days: 7
 
   # ─── 第四步：构建并推送多架构 Docker 镜像 ───────────────────────────────────
-  # 注意：Docker 构建（尤其 arm64 QEMU 模拟）耗时较长，与 release 发布解耦
-  # release job 不等待 Docker，二者并行；Docker 失败不阻塞 GitHub Release 发布
+  # 关键设计：Dockerfile 直接 COPY 预编译好的静态二进制，无需在容器内重新编译
+  # 原来在 Docker 内 cargo build（含 arm64 QEMU 模拟）耗时 ~60 分钟，现在 ~2 分钟
+  # 依赖 build-backend 完成（需要两个 arch 的编译好的二进制文件）
   build-docker:
     name: 构建 Docker 镜像
-    needs: [prepare-binaries, build-frontend]
+    needs: build-backend
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -384,22 +385,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 下载第三方二进制
+      # 下载两个 arch 的编译产物，放到同一目录供 Dockerfile 的 COPY 指令使用
+      - name: 下载 amd64 二进制
         uses: actions/download-artifact@v4
         with:
-          name: third-party-binaries
-          path: assets/binaries/
+          name: rust-shark-linux-amd64
+          path: docker-context/
 
-      - name: 恢复二进制执行权限
-        run: chmod +x assets/binaries/*
-
-      - name: 下载前端产物
+      - name: 下载 arm64 二进制
         uses: actions/download-artifact@v4
         with:
-          name: frontend-dist
-          path: frontend/dist/
+          name: rust-shark-linux-arm64
+          path: docker-context/
 
-      - name: 设置 QEMU（多平台模拟）
+      - name: 准备 Docker 构建上下文
+        run: |
+          # 将预编译二进制复制到根目录（Dockerfile 在此处 COPY）
+          cp docker-context/rust-shark-linux-amd64 rust-shark-linux-amd64
+          cp docker-context/rust-shark-linux-arm64 rust-shark-linux-arm64
+          chmod +x rust-shark-linux-amd64 rust-shark-linux-arm64
+          ls -lh rust-shark-linux-*
+
+      - name: 设置 QEMU（多平台 manifest 需要，但不再用于编译）
         uses: docker/setup-qemu-action@v3
 
       - name: 设置 Docker Buildx
@@ -423,6 +430,8 @@ jobs:
             type=semver,pattern={{major}}
             type=sha,format=short
 
+      # TARGETARCH 由 buildx 自动注入（amd64/arm64），Dockerfile 用它选择对应二进制
+      # 两个平台都只是 COPY 文件 + 设置权限，无编译，预计 <2 分钟完成
       - name: 构建并推送多架构镜像
         uses: docker/build-push-action@v6
         with:
