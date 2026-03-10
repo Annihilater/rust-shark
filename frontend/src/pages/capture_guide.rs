@@ -113,6 +113,80 @@ fn sections() -> Vec<FilterSection> {
                     filter: "redis",
                     desc: "Redis 协议",
                 },
+                FilterExample {
+                    filter: "ptp",
+                    desc: "PTPv2 精确时间协议（IEEE 1588，用于局域网时钟同步）",
+                },
+                FilterExample {
+                    filter: "lldp",
+                    desc: "LLDP 链路层发现协议（交换机/路由器邻居发现）",
+                },
+                FilterExample {
+                    filter: "stp",
+                    desc: "STP/RSTP 生成树协议（防止二层环路）",
+                },
+                FilterExample {
+                    filter: "ospf",
+                    desc: "OSPF 路由协议",
+                },
+                FilterExample {
+                    filter: "bgp",
+                    desc: "BGP 边界网关协议（互联网路由）",
+                },
+                FilterExample {
+                    filter: "dhcpv6",
+                    desc: "DHCPv6 IPv6 地址分配",
+                },
+                FilterExample {
+                    filter: "mdns",
+                    desc: "mDNS 多播 DNS（局域网服务发现，如 Bonjour）",
+                },
+                FilterExample {
+                    filter: "llmnr",
+                    desc: "LLMNR 本地链路多播名称解析（Windows 局域网）",
+                },
+                FilterExample {
+                    filter: "nbns",
+                    desc: "NetBIOS 名称服务（Windows 工作组发现）",
+                },
+            ],
+        },
+        FilterSection {
+            title: "PTPv2 精确时间协议",
+            icon: "⏰",
+            items: vec![
+                FilterExample {
+                    filter: "ptp",
+                    desc: "所有 PTPv2 包（IEEE 1588-2008，精确到纳秒级时钟同步）",
+                },
+                FilterExample {
+                    filter: "ptp.v2.messageid == 0x0",
+                    desc: "Sync 消息——主时钟发出的同步报文",
+                },
+                FilterExample {
+                    filter: "ptp.v2.messageid == 0x1",
+                    desc: "Delay_Req 消息——从时钟请求测量延迟",
+                },
+                FilterExample {
+                    filter: "ptp.v2.messageid == 0x8",
+                    desc: "Follow_Up 消息——携带精确发送时间戳",
+                },
+                FilterExample {
+                    filter: "ptp.v2.messageid == 0x9",
+                    desc: "Delay_Resp 消息——主时钟回应延迟测量",
+                },
+                FilterExample {
+                    filter: "ptp.v2.messageid == 0xb",
+                    desc: "Announce 消息——主时钟宣告自身（BMCA 选主）",
+                },
+                FilterExample {
+                    filter: "ptp and eth.dst == 01:1b:19:00:00:00",
+                    desc: "PTPv2 多播包（默认多播地址）",
+                },
+                FilterExample {
+                    filter: "ptp.v2.domainnumber == 0",
+                    desc: "PTP 域 0（默认域，最常见）",
+                },
             ],
         },
         FilterSection {
@@ -648,6 +722,7 @@ pub fn CaptureGuidePage() -> impl IntoView {
                     <div>
                         <h1 class="text-2xl font-bold">"📖 Wireshark 过滤器使用指南"</h1>
                         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">"在分析页面的过滤器输入框中使用以下表达式，按 Enter 或点击「应用过滤」"</p>
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">"💡 数据包列表仅显示 IP 地址，端口信息见「信息」列（如 35976 → 22）或使用 tcp.port == N 过滤"</p>
                     </div>
                 </div>
 
