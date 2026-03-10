@@ -1,6 +1,7 @@
 use crate::components::layout::Layout;
 use crate::store::use_auth;
 use leptos::prelude::*;
+use wasm_bindgen::JsCast;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Data model
@@ -694,6 +695,20 @@ fn sections() -> Vec<FilterSection> {
     ]
 }
 
+fn scroll_to_section(idx: usize) {
+    if let Some(window) = web_sys::window() {
+        if let Some(document) = window.document() {
+            let id = format!("guide-section-{}", idx);
+            if let Some(el) = document.get_element_by_id(&id) {
+                let el: &web_sys::HtmlElement = el.unchecked_ref();
+                el.scroll_into_view_with_bool(true);
+                // 微调：抵消 sticky header 等固定元素的遮挡（约 80px）
+                let _ = window.scroll_by_with_x_and_y(0.0, -80.0);
+            }
+        }
+    }
+}
+
 #[component]
 pub fn CaptureGuidePage() -> impl IntoView {
     let auth = use_auth();
@@ -708,138 +723,191 @@ pub fn CaptureGuidePage() -> impl IntoView {
     });
 
     let search = RwSignal::new(String::new());
+    let active_idx: RwSignal<Option<usize>> = RwSignal::new(None);
 
     let data = sections();
+    // TOC 条目：(idx, icon, title)
+    let toc: Vec<(usize, &'static str, &'static str)> = data
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (i, s.icon, s.title))
+        .collect();
 
     view! {
         <Layout>
-            <div class="max-w-5xl mx-auto">
-                // 页眉
-                <div class="flex items-center gap-4 mb-6">
-                    <a href="/captures" class="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white transition-colors text-sm">
-                        "← 抓包任务"
-                    </a>
-                    <div>
-                        <h1 class="text-2xl font-bold">"📖 Wireshark 过滤器使用指南"</h1>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">"在分析页面的过滤器输入框中使用以下表达式，按 Enter 或点击「应用过滤」"</p>
-                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">"💡 数据包列表仅显示 IP 地址，端口信息见「信息」列（如 35976 → 22）或使用 tcp.port == N 过滤"</p>
-                    </div>
-                </div>
+            // 两栏布局：左主内容 + 右固定目录
+            <div class="flex gap-6 items-start max-w-7xl mx-auto">
 
-                // 快速参考卡片
-                <div class="grid grid-cols-3 gap-3 mb-6">
-                    <div class="bg-blue-50 border border-blue-200 dark:bg-blue-900/30 dark:border-blue-700/50 rounded-xl p-4">
-                        <div class="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-2 uppercase tracking-wide">"运算符"</div>
-                        <div class="space-y-1 font-mono text-xs">
-                            <div><span class="text-yellow-600 dark:text-yellow-300">"and"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"&&"</span><span class="text-gray-500">"  逻辑与"</span></div>
-                            <div><span class="text-yellow-600 dark:text-yellow-300">"or"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"||"</span><span class="text-gray-500">"   逻辑或"</span></div>
-                            <div><span class="text-yellow-600 dark:text-yellow-300">"not"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"!"</span><span class="text-gray-500">"   取反"</span></div>
+                // ── 主内容区 ─────────────────────────────────────────
+                <div class="flex-1 min-w-0">
+                    // 页眉
+                    <div class="flex items-center gap-4 mb-6">
+                        <a href="/captures" class="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white transition-colors text-sm shrink-0">
+                            "← 抓包任务"
+                        </a>
+                        <div>
+                            <h1 class="text-2xl font-bold">"📖 Wireshark 过滤器使用指南"</h1>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">"在分析页面的过滤器输入框中使用以下表达式，按 Enter 或点击「应用过滤」"</p>
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">"💡 数据包列表仅显示 IP 地址，端口信息见「信息」列（如 35976 → 22）或使用 tcp.port == N 过滤"</p>
                         </div>
                     </div>
-                    <div class="bg-green-50 border border-green-200 dark:bg-green-900/30 dark:border-green-700/50 rounded-xl p-4">
-                        <div class="text-xs text-green-600 dark:text-green-400 font-semibold mb-2 uppercase tracking-wide">"比较符"</div>
-                        <div class="space-y-1 font-mono text-xs">
-                            <div><span class="text-yellow-600 dark:text-yellow-300">"=="</span><span class="text-gray-500">"  等于"</span></div>
-                            <div><span class="text-yellow-600 dark:text-yellow-300">"!="</span><span class="text-gray-500">"  不等于"</span></div>
-                            <div><span class="text-yellow-600 dark:text-yellow-300">">"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"<"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">">="</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"<="</span></div>
+
+                    // 快速参考卡片
+                    <div class="grid grid-cols-3 gap-3 mb-6">
+                        <div class="bg-blue-50 border border-blue-200 dark:bg-blue-900/30 dark:border-blue-700/50 rounded-xl p-4">
+                            <div class="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-2 uppercase tracking-wide">"运算符"</div>
+                            <div class="space-y-1 font-mono text-xs">
+                                <div><span class="text-yellow-600 dark:text-yellow-300">"and"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"&&"</span><span class="text-gray-500">"  逻辑与"</span></div>
+                                <div><span class="text-yellow-600 dark:text-yellow-300">"or"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"||"</span><span class="text-gray-500">"   逻辑或"</span></div>
+                                <div><span class="text-yellow-600 dark:text-yellow-300">"not"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"!"</span><span class="text-gray-500">"   取反"</span></div>
+                            </div>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 dark:bg-green-900/30 dark:border-green-700/50 rounded-xl p-4">
+                            <div class="text-xs text-green-600 dark:text-green-400 font-semibold mb-2 uppercase tracking-wide">"比较符"</div>
+                            <div class="space-y-1 font-mono text-xs">
+                                <div><span class="text-yellow-600 dark:text-yellow-300">"=="</span><span class="text-gray-500">"  等于"</span></div>
+                                <div><span class="text-yellow-600 dark:text-yellow-300">"!="</span><span class="text-gray-500">"  不等于"</span></div>
+                                <div><span class="text-yellow-600 dark:text-yellow-300">">"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"<"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">">="</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"<="</span></div>
+                            </div>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 dark:bg-purple-900/30 dark:border-purple-700/50 rounded-xl p-4">
+                            <div class="text-xs text-purple-600 dark:text-purple-400 font-semibold mb-2 uppercase tracking-wide">"字符串"</div>
+                            <div class="space-y-1 font-mono text-xs">
+                                <div><span class="text-yellow-600 dark:text-yellow-300">"contains"</span><span class="text-gray-500">" 包含"</span></div>
+                                <div><span class="text-yellow-600 dark:text-yellow-300">"matches"</span><span class="text-gray-500">"  正则匹配"</span></div>
+                                <div><span class="text-gray-500">"字符串用双引号括起"</span></div>
+                            </div>
                         </div>
                     </div>
-                    <div class="bg-purple-50 border border-purple-200 dark:bg-purple-900/30 dark:border-purple-700/50 rounded-xl p-4">
-                        <div class="text-xs text-purple-600 dark:text-purple-400 font-semibold mb-2 uppercase tracking-wide">"字符串"</div>
-                        <div class="space-y-1 font-mono text-xs">
-                            <div><span class="text-yellow-600 dark:text-yellow-300">"contains"</span><span class="text-gray-500">" 包含"</span></div>
-                            <div><span class="text-yellow-600 dark:text-yellow-300">"matches"</span><span class="text-gray-500">"  正则匹配"</span></div>
-                            <div><span class="text-gray-500">"字符串用双引号括起"</span></div>
-                        </div>
+
+                    // 搜索框
+                    <div class="mb-6">
+                        <input
+                            class="w-full input rounded-lg px-4 py-2.5 text-sm font-mono text-gray-900 dark:text-white focus:outline-none"
+                            placeholder="搜索过滤器... 例如: tcp, http, port"
+                            on:input=move |ev| search.set(event_target_value(&ev))
+                        />
                     </div>
-                </div>
 
-                // 搜索框
-                <div class="mb-6">
-                    <input
-                        class="w-full input rounded-lg px-4 py-2.5 text-sm font-mono text-gray-900 dark:text-white focus:outline-none"
-                        placeholder="搜索过滤器... 例如: tcp, http, port"
-                        on:input=move |ev| search.set(event_target_value(&ev))
-                    />
-                </div>
+                    // 过滤器分类列表
+                    <div class="space-y-6">
+                        {
+                            let data_clone = data.clone();
+                            move || {
+                                let q = search.get().to_lowercase();
+                                data_clone.iter().enumerate().filter_map(|(idx, section)| {
+                                    let filtered: Vec<&FilterExample> = section.items.iter().filter(|ex| {
+                                        q.is_empty()
+                                            || ex.filter.to_lowercase().contains(&q)
+                                            || ex.desc.to_lowercase().contains(&q)
+                                    }).collect();
 
-                // 过滤器分类列表
-                <div class="space-y-6">
-                    {
-                        let data_clone = data.clone();
-                        move || {
-                            let q = search.get().to_lowercase();
-                            data_clone.iter().filter_map(|section| {
-                                let filtered: Vec<&FilterExample> = section.items.iter().filter(|ex| {
-                                    q.is_empty()
-                                        || ex.filter.to_lowercase().contains(&q)
-                                        || ex.desc.to_lowercase().contains(&q)
-                                }).collect();
+                                    if filtered.is_empty() { return None; }
 
-                                if filtered.is_empty() { return None; }
-
-                                Some(view! {
-                                    <div class="card rounded-xl overflow-hidden">
-                                        // 章节标题
-                                        <div class="px-5 py-3 table-head flex items-center gap-2">
-                                            <span class="text-lg">{section.icon}</span>
-                                            <span class="font-semibold text-gray-800 dark:text-white">{section.title}</span>
-                                            <span class="ml-auto text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-0.5">
-                                                {filtered.len()}" 条"
-                                            </span>
-                                        </div>
-                                        // 条目列表
-                                        <div class="divide-y divide-gray-100 dark:divide-gray-800">
-                                            {
-                                                filtered.into_iter().map(|ex| {
-                                                    let filter_str = ex.filter.to_string();
-                                                    let filter_for_copy = filter_str.clone();
-                                                    view! {
-                                                        <div class="flex items-start gap-4 px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 group transition-colors">
-                                                            // 过滤器代码
-                                                            <div class="flex-1 min-w-0">
-                                                                <code class="text-sm font-mono text-green-700 dark:text-green-400 break-all leading-relaxed">
-                                                                    {filter_str}
-                                                                </code>
-                                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ex.desc}</p>
-                                                            </div>
-                                                            // 复制按钮
-                                                            <button
-                                                                class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-xs btn-secondary rounded px-2 py-1"
-                                                                on:click=move |_| {
-                                                                    let val = filter_for_copy.clone();
-                                                                    if let Some(window) = web_sys::window() {
-                                                                        let _ = window.navigator().clipboard().write_text(&val);
+                                    let section_id = format!("guide-section-{}", idx);
+                                    Some(view! {
+                                        <div id=section_id class="card rounded-xl overflow-hidden scroll-mt-20">
+                                            // 章节标题
+                                            <div class="px-5 py-3 table-head flex items-center gap-2">
+                                                <span class="text-lg">{section.icon}</span>
+                                                <span class="font-semibold text-gray-800 dark:text-white">{section.title}</span>
+                                                <span class="ml-auto text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-0.5">
+                                                    {filtered.len()}" 条"
+                                                </span>
+                                            </div>
+                                            // 条目列表
+                                            <div class="divide-y divide-gray-100 dark:divide-gray-800">
+                                                {
+                                                    filtered.into_iter().map(|ex| {
+                                                        let filter_str = ex.filter.to_string();
+                                                        let filter_for_copy = filter_str.clone();
+                                                        view! {
+                                                            <div class="flex items-start gap-4 px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 group transition-colors">
+                                                                // 过滤器代码
+                                                                <div class="flex-1 min-w-0">
+                                                                    <code class="text-sm font-mono text-green-700 dark:text-green-400 break-all leading-relaxed">
+                                                                        {filter_str}
+                                                                    </code>
+                                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ex.desc}</p>
+                                                                </div>
+                                                                // 复制按钮
+                                                                <button
+                                                                    class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-xs btn-secondary rounded px-2 py-1"
+                                                                    on:click=move |_| {
+                                                                        let val = filter_for_copy.clone();
+                                                                        if let Some(window) = web_sys::window() {
+                                                                            let _ = window.navigator().clipboard().write_text(&val);
+                                                                        }
                                                                     }
-                                                                }
-                                                            >
-                                                                "复制"
-                                                            </button>
-                                                        </div>
-                                                    }
-                                                }).collect::<Vec<_>>()
-                                            }
+                                                                >
+                                                                    "复制"
+                                                                </button>
+                                                            </div>
+                                                        }
+                                                    }).collect::<Vec<_>>()
+                                                }
+                                            </div>
                                         </div>
-                                    </div>
-                                })
-                            }).collect::<Vec<_>>()
+                                    })
+                                }).collect::<Vec<_>>()
+                            }
                         }
+                    </div>
+
+                    // 底部提示
+                    <div class="mt-8 p-4 bg-yellow-50 border border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-700/40 rounded-xl text-sm text-yellow-800 dark:text-yellow-300/80">
+                        <p class="font-semibold mb-1">"💡 提示"</p>
+                        <ul class="space-y-1 text-xs list-disc list-inside text-yellow-700 dark:text-yellow-200/60">
+                            <li>"过滤器区分大小写，协议名全部小写（如 tcp 而非 TCP）"</li>
+                            <li>"使用括号 () 改变运算优先级，and 优先级高于 or"</li>
+                            <li>"字符串值需要用双引号括起来，如 http.host == \"example.com\""</li>
+                            <li>"正则表达式使用 PCRE 语法，matches 关键字"</li>
+                            <li>"点击「复制」后可直接粘贴到分析页面的过滤器输入框"</li>
+                        </ul>
+                    </div>
+
+                    <div class="mt-4 pb-8"></div>
+                </div>
+
+                // ── 右侧固定目录（搜索时隐藏） ───────────────────────
+                {move || search.get().is_empty().then(|| {
+                    let toc_clone = toc.clone();
+                    view! {
+                        <nav class="hidden xl:block w-48 shrink-0 sticky top-6 self-start">
+                            <div class="card rounded-xl overflow-hidden">
+                                <div class="px-3 py-2.5 table-head border-b border-gray-100 dark:border-gray-700">
+                                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">"目录"</span>
+                                </div>
+                                <ul class="py-1.5">
+                                    {toc_clone.into_iter().map(|(idx, icon, title)| {
+                                        view! {
+                                            <li>
+                                                <button
+                                                    class=move || {
+                                                        let base = "w-full text-left flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors rounded-md mx-0.5";
+                                                        if active_idx.get() == Some(idx) {
+                                                            format!("{base} bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium")
+                                                        } else {
+                                                            format!("{base} text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white")
+                                                        }
+                                                    }
+                                                    on:click=move |_| {
+                                                        active_idx.set(Some(idx));
+                                                        scroll_to_section(idx);
+                                                    }
+                                                >
+                                                    <span class="shrink-0 text-sm leading-none">{icon}</span>
+                                                    <span class="truncate leading-snug">{title}</span>
+                                                </button>
+                                            </li>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </ul>
+                            </div>
+                        </nav>
                     }
-                </div>
+                })}
 
-                // 底部提示
-                <div class="mt-8 p-4 bg-yellow-50 border border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-700/40 rounded-xl text-sm text-yellow-800 dark:text-yellow-300/80">
-                    <p class="font-semibold mb-1">"💡 提示"</p>
-                    <ul class="space-y-1 text-xs list-disc list-inside text-yellow-700 dark:text-yellow-200/60">
-                        <li>"过滤器区分大小写，协议名全部小写（如 tcp 而非 TCP）"</li>
-                        <li>"使用括号 () 改变运算优先级，and 优先级高于 or"</li>
-                        <li>"字符串值需要用双引号括起来，如 http.host == \"example.com\""</li>
-                        <li>"正则表达式使用 PCRE 语法，matches 关键字"</li>
-                        <li>"点击「复制」后可直接粘贴到分析页面的过滤器输入框"</li>
-                    </ul>
-                </div>
-
-                <div class="mt-4 pb-8"></div>
             </div>
         </Layout>
     }
