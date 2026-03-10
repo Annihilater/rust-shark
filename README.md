@@ -11,6 +11,51 @@
 - **PCAP 下载**：捕获文件存储在后端，支持下载
 - **单二进制部署**：前端 WASM 通过 rust-embed 嵌入后端二进制
 
+## 界面预览
+
+### 仪表盘
+
+![仪表盘](docs/images/01-dashboard.png)
+
+### 服务器管理 & SSH 密钥
+
+<table>
+  <tr>
+    <td><img src="docs/images/02-servers.png" alt="服务器列表"/><br/><sub>服务器列表</sub></td>
+    <td><img src="docs/images/03-ssh-keys.png" alt="SSH 密钥列表"/><br/><sub>SSH 密钥列表</sub></td>
+  </tr>
+</table>
+
+![SSH 密钥详情](docs/images/04-ssh-key-detail.png)
+
+### 抓包配置 & 任务
+
+<table>
+  <tr>
+    <td><img src="docs/images/05-capture-profiles.png" alt="抓包配置列表"/><br/><sub>抓包配置列表</sub></td>
+    <td><img src="docs/images/06-capture-profile-edit.png" alt="新建 / 编辑配置"/><br/><sub>新建 / 编辑配置</sub></td>
+  </tr>
+</table>
+
+![抓包任务列表](docs/images/07-capture-tasks.png)
+
+![抓包任务列表（局部）](docs/images/09-capture-tasks-list.png)
+
+### 包分析
+
+![包分析](docs/images/08-packet-analysis.png)
+
+![过滤器指南](docs/images/10-filter-guide.png)
+
+### 用户管理
+
+<table>
+  <tr>
+    <td><img src="docs/images/11-user-management.png" alt="用户管理"/><br/><sub>用户管理</sub></td>
+    <td><img src="docs/images/12-user-profile.png" alt="用户个人资料"/><br/><sub>用户个人资料</sub></td>
+  </tr>
+</table>
+
 ## 技术栈
 
 | 层级 | 技术                                |
