@@ -277,7 +277,7 @@ pub fn AdminPage() -> impl IntoView {
             // ── 编辑用户弹窗 ──────────────────────────────────────
             <Modal
                 show=show_edit.read_only()
-                title=Signal::derive(move || format!("编辑用户"))
+                title=Signal::derive(move || "编辑用户".to_string())
                 on_close=Callback::new(move |_| show_edit.set(false))
             >
                 <form on:submit=on_save_edit class="space-y-3">

@@ -703,7 +703,7 @@ fn scroll_to_section(idx: usize) {
                 let el: &web_sys::HtmlElement = el.unchecked_ref();
                 el.scroll_into_view_with_bool(true);
                 // 微调：抵消 sticky header 等固定元素的遮挡（约 80px）
-                let _ = window.scroll_by_with_x_and_y(0.0, -80.0);
+                window.scroll_by_with_x_and_y(0.0, -80.0);
             }
         }
     }

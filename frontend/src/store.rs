@@ -79,11 +79,10 @@ fn load_dark_mode() -> bool {
         return v == "dark";
     }
     // 通过 js_sys 检测系统媒体查询偏好
-    let prefers_dark = js_sys::eval("window.matchMedia('(prefers-color-scheme: dark)').matches")
+    js_sys::eval("window.matchMedia('(prefers-color-scheme: dark)').matches")
         .ok()
         .and_then(|v| v.as_bool())
-        .unwrap_or(true);
-    prefers_dark
+        .unwrap_or(true)
 }
 
 fn apply_dark_mode(dark: bool) {

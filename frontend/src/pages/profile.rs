@@ -65,9 +65,8 @@ pub fn ProfilePage() -> impl IntoView {
                 }
                 Err(e) => error.set(e),
             }
-            match api::get::<Vec<LoginLog>>("/api/profile/login-logs").await {
-                Ok(logs) => login_logs.set(logs),
-                Err(_) => {}
+            if let Ok(logs) = api::get::<Vec<LoginLog>>("/api/profile/login-logs").await {
+                login_logs.set(logs);
             }
         });
     };
