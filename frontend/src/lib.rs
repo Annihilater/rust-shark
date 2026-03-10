@@ -40,5 +40,6 @@ pub fn main() {
     console_error_panic_hook::set_once();
     store::init_auth();
     store::init_theme();
+    store::init_esc_depth();
     mount_to_body(App);
 }

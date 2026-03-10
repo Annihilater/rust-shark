@@ -1,4 +1,4 @@
-use crate::store::{toggle_theme, use_auth, use_dark_mode, AuthState};
+use crate::store::{has_esc_focus, toggle_theme, use_auth, use_dark_mode, AuthState};
 use leptos::prelude::*;
 
 #[component]
@@ -7,10 +7,10 @@ pub fn Layout(children: Children) -> impl IntoView {
     let dark = use_dark_mode();
     let collapsed = RwSignal::new(false);
 
-    // ESC 键控制侧边栏折叠
+    // ESC 键控制侧边栏折叠 —— 仅在无弹窗占据 ESC 时生效
     let collapsed_clone = collapsed;
     let _ = window_event_listener(leptos::ev::keydown, move |ev: web_sys::KeyboardEvent| {
-        if ev.key() == "Escape" {
+        if ev.key() == "Escape" && !has_esc_focus() {
             collapsed_clone.update(|c| *c = !*c);
         }
     });

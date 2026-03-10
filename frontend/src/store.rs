@@ -118,3 +118,36 @@ pub fn toggle_theme() {
     apply_dark_mode(new_dark);
     signal.set(new_dark);
 }
+
+// ── ESC 优先级管理 ────────────────────────────────────────────────────────────
+//
+// 规则：弹窗打开时 modal_depth +1，关闭时 -1。
+// Layout 的侧边栏 ESC 只在 modal_depth == 0 时生效，从而弹窗 ESC 优先级更高。
+
+static ESC_DEPTH: OnceLock<RwSignal<u32>> = OnceLock::new();
+
+pub fn init_esc_depth() {
+    ESC_DEPTH.get_or_init(|| RwSignal::new(0));
+}
+
+/// 弹窗打开时调用，增加深度
+pub fn push_esc_layer() {
+    if let Some(sig) = ESC_DEPTH.get() {
+        sig.update(|n| *n += 1);
+    }
+}
+
+/// 弹窗关闭时调用，减少深度
+pub fn pop_esc_layer() {
+    if let Some(sig) = ESC_DEPTH.get() {
+        sig.update(|n| *n = n.saturating_sub(1));
+    }
+}
+
+/// 当前是否有弹窗占据 ESC（供 Layout 判断）
+pub fn has_esc_focus() -> bool {
+    ESC_DEPTH
+        .get()
+        .map(|s| s.get_untracked() > 0)
+        .unwrap_or(false)
+}

@@ -1,3 +1,4 @@
+use crate::store::{pop_esc_layer, push_esc_layer};
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -11,11 +12,19 @@ pub fn Modal(
 ) -> impl IntoView {
     let children = StoredValue::new(children);
 
-    // 弹窗打开时在 window 上注册 keydown 监听，关闭时自动移除
+    // 弹窗打开时：
+    //   1. 向全局 ESC 栈注册（让 Layout 知道有弹窗存在）
+    //   2. 在 window 上注册 keydown，ESC 时关闭弹窗
+    // 弹窗关闭/销毁时：
+    //   1. 从全局 ESC 栈注销
+    //   2. 移除 keydown 监听
     Effect::new(move |_| {
         if !show.get() {
             return;
         }
+
+        // 注册到 ESC 优先级栈
+        push_esc_layer();
 
         let closure =
             Closure::<dyn Fn(web_sys::KeyboardEvent)>::new(move |ev: web_sys::KeyboardEvent| {
@@ -29,9 +38,10 @@ pub fn Modal(
             .add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())
             .unwrap();
 
-        // 将 closure 转为 JS function 保存，Effect cleanup 时移除监听
+        // Effect cleanup：弹窗隐藏/卸载时移除监听并出栈
         let cb = closure.into_js_value();
         on_cleanup(move || {
+            pop_esc_layer();
             let window = web_sys::window().unwrap();
             let _ = window.remove_event_listener_with_callback("keydown", cb.unchecked_ref());
         });
