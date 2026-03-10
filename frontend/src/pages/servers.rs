@@ -288,7 +288,9 @@ pub fn ServersPage() -> impl IntoView {
                     let msg = if result.success {
                         format!(
                             "连接成功{}",
-                            result.tcpdump_version.as_deref()
+                            result
+                                .tcpdump_version
+                                .as_deref()
                                 .map(|v| format!(" · tcpdump: {}", v))
                                 .unwrap_or_default()
                         )
@@ -312,7 +314,7 @@ pub fn ServersPage() -> impl IntoView {
                         gloo_timers::future::TimeoutFuture::new(5_000).await;
                         toast_msg.set(None);
                     });
-                },
+                }
             }
         });
     };

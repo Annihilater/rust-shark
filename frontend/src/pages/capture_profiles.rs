@@ -152,8 +152,18 @@ pub fn CaptureProfilesPage() -> impl IntoView {
         edit_id.set(Some(profile.id.clone()));
         name.set(profile.name.clone());
         filter.set(profile.filter.clone().unwrap_or_default());
-        duration.set(profile.duration.map(|d| d.to_string()).unwrap_or_else(|| "60".to_string()));
-        packet_limit.set(profile.packet_limit.map(|p| p.to_string()).unwrap_or_else(|| "1000".to_string()));
+        duration.set(
+            profile
+                .duration
+                .map(|d| d.to_string())
+                .unwrap_or_else(|| "60".to_string()),
+        );
+        packet_limit.set(
+            profile
+                .packet_limit
+                .map(|p| p.to_string())
+                .unwrap_or_else(|| "1000".to_string()),
+        );
         error.set(None);
 
         let sid = profile.server_id.clone();
