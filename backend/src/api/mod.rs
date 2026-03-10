@@ -17,6 +17,7 @@ pub mod auth;
 pub mod capture_profiles;
 pub mod captures;
 pub mod keys;
+pub mod profile;
 pub mod servers;
 pub mod stats;
 
@@ -171,6 +172,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/api/servers", servers::router())
         .nest("/api/captures", captures::router())
         .nest("/api/capture-profiles", capture_profiles::router())
+        .nest("/api/profile", profile::router())
         .merge(stats::stats_router())
         .layer(middleware::from_fn_with_state(
             state.clone(),

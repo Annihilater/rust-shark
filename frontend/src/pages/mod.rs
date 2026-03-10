@@ -7,4 +7,5 @@ pub mod captures;
 pub mod dashboard;
 pub mod keys;
 pub mod login;
+pub mod profile;
 pub mod servers;

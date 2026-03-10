@@ -10,7 +10,8 @@ mod store;
 use pages::{
     admin::AdminPage, analysis::AnalysisPage, capture_detail::CaptureDetailPage,
     capture_guide::CaptureGuidePage, capture_profiles::CaptureProfilesPage, captures::CapturesPage,
-    dashboard::DashboardPage, keys::KeysPage, login::LoginPage, servers::ServersPage,
+    dashboard::DashboardPage, keys::KeysPage, login::LoginPage, profile::ProfilePage,
+    servers::ServersPage,
 };
 
 #[component]
@@ -28,6 +29,7 @@ pub fn App() -> impl IntoView {
                 <Route path=path!("/analysis") view=AnalysisPage/>
                 <Route path=path!("/capture-guide") view=CaptureGuidePage/>
                 <Route path=path!("/admin") view=AdminPage/>
+                <Route path=path!("/profile") view=ProfilePage/>
             </Routes>
         </Router>
     }
