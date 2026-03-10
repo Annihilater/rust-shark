@@ -81,7 +81,7 @@ pub fn ServersPage() -> impl IntoView {
     let keys = RwSignal::new(Vec::<SshKey>::new());
     let show_modal = RwSignal::new(false);
     let testing_id = RwSignal::new(Option::<String>::None);
-    let test_result = RwSignal::new(Option::<TestResult>::None);
+    let toast_msg = RwSignal::new(Option::<(bool, String)>::None); // (success, message)
 
     // None = 新建模式；Some(id) = 编辑模式
     let edit_id = RwSignal::new(Option::<String>::None);
@@ -279,16 +279,40 @@ pub fn ServersPage() -> impl IntoView {
     // ── 测试连接（列表页按钮）────────────────────────────────────────────
     let on_test = move |id: String| {
         testing_id.set(Some(id.clone()));
-        test_result.set(None);
+        toast_msg.set(None);
         leptos::task::spawn_local(async move {
             let path = format!("/api/servers/{}/test", id);
             match crate::api::post::<_, TestResult>(&path, &serde_json::json!({})).await {
                 Ok(result) => {
-                    test_result.set(Some(result));
+                    let success = result.success;
+                    let msg = if result.success {
+                        format!(
+                            "连接成功{}",
+                            result.tcpdump_version.as_deref()
+                                .map(|v| format!(" · tcpdump: {}", v))
+                                .unwrap_or_default()
+                        )
+                    } else {
+                        format!("连接失败: {}", result.message)
+                    };
+                    toast_msg.set(Some((success, msg)));
                     testing_id.set(None);
                     load_servers();
+                    // 5秒后自动关闭 Toast
+                    leptos::task::spawn_local(async move {
+                        gloo_timers::future::TimeoutFuture::new(5_000).await;
+                        toast_msg.set(None);
+                    });
                 }
-                Err(_) => testing_id.set(None),
+                Err(e) => {
+                    toast_msg.set(Some((false, format!("连接失败: {}", e))));
+                    testing_id.set(None);
+                    // 5秒后自动关闭 Toast
+                    leptos::task::spawn_local(async move {
+                        gloo_timers::future::TimeoutFuture::new(5_000).await;
+                        toast_msg.set(None);
+                    });
+                },
             }
         });
     };
@@ -314,48 +338,21 @@ pub fn ServersPage() -> impl IntoView {
                     >"+ 添加服务器"</button>
                 </div>
 
-                // 测试结果横幅
-                {move || test_result.get().map(|r| {
-                    let banner_class = if r.success {
-                        "bg-green-900/40 border border-green-700 rounded-xl p-4 mb-4"
+                // 右上角 Toast 通知（测试连接结果）
+                {move || toast_msg.get().map(|(success, msg)| {
+                    let (bg, icon) = if success {
+                        ("bg-green-600", "✓")
                     } else {
-                        "bg-red-900/40 border border-red-700 rounded-xl p-4 mb-4"
+                        ("bg-red-600", "✗")
                     };
-                    // 把错误链按 ": " 分割成多行，每行独立展示
-                    let lines: Vec<String> = r.message
-                        .split(": ")
-                        .map(|s| s.to_string())
-                        .collect();
                     view! {
-                        <div class=banner_class>
-                            <div class="flex items-center justify-between">
-                                <span class="font-medium">
-                                    {if r.success { "✅ 连接成功" } else { "❌ 连接失败" }}
-                                </span>
-                                <button class="text-gray-400 hover:text-white text-sm"
-                                    on:click=move |_| test_result.set(None)>"✕"</button>
-                            </div>
-                            // 错误链逐层展示
-                            <div class="mt-2 space-y-0.5">
-                                {lines.into_iter().enumerate().map(|(i, line)| {
-                                    let indent_px = (i * 12).min(48);
-                                    let style = format!("padding-left: {}px", indent_px);
-                                    let text_class = if i == 0 {
-                                        "text-sm text-gray-200 font-medium"
-                                    } else {
-                                        "text-xs text-gray-400"
-                                    };
-                                    view! {
-                                        <p class=text_class style=style>
-                                            {if i > 0 { "↳ " } else { "" }}
-                                            {line}
-                                        </p>
-                                    }
-                                }).collect::<Vec<_>>()}
-                            </div>
-                            {r.tcpdump_version.map(|v| view! {
-                                <p class="text-sm text-green-400 mt-1">"tcpdump: "{v}</p>
-                            })}
+                        <div class=format!("fixed top-4 right-4 {} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50 max-w-sm", bg)>
+                            <span class="text-base font-bold shrink-0">{icon}</span>
+                            <span class="text-sm flex-1">{msg}</span>
+                            <button
+                                class="ml-1 text-white/70 hover:text-white transition-colors text-lg leading-none shrink-0"
+                                on:click=move |_| toast_msg.set(None)
+                            >"✕"</button>
                         </div>
                     }
                 })}

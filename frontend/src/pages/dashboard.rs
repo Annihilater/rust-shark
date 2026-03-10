@@ -390,12 +390,12 @@ fn DonutChart(total: i64, done: i64, running: i64, cancelled: i64, failed: i64) 
 
     view! {
         <svg width="120" height="120" viewBox="0 0 120 120" class="shrink-0">
-            // Dark track ring
-            <circle cx="60" cy="60" r="45" fill="none" stroke="#1f2937" stroke-width="14"/>
+            // Track ring — light: gray-200, dark: gray-700
+            <circle cx="60" cy="60" r="45" fill="none" class="stroke-gray-200 dark:stroke-gray-700" stroke-width="14"/>
 
             {if is_empty {
                 view! {
-                    <circle cx="60" cy="60" r="45" fill="none" stroke="#374151" stroke-width="14"/>
+                    <circle cx="60" cy="60" r="45" fill="none" class="stroke-gray-200 dark:stroke-gray-700" stroke-width="14"/>
                 }.into_any()
             } else {
                 view! {
@@ -430,12 +430,14 @@ fn DonutChart(total: i64, done: i64, running: i64, cancelled: i64, failed: i64) 
                 }.into_any()
             }}
 
-            // Center: total count label
-            <text x="60" y="56" text-anchor="middle" fill="white"
+            // Center: total count label — fill adapts via currentColor on parent
+            <text x="60" y="56" text-anchor="middle"
+                  class="fill-gray-800 dark:fill-white"
                   font-size="16" font-weight="bold" font-family="monospace">
                 {total.to_string()}
             </text>
-            <text x="60" y="70" text-anchor="middle" fill="#6b7280"
+            <text x="60" y="70" text-anchor="middle"
+                  class="fill-gray-400 dark:fill-gray-500"
                   font-size="9" font-family="sans-serif">
                 "总任务"
             </text>
@@ -464,25 +466,25 @@ fn BarRow(
 
     view! {
         <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-400 w-14 shrink-0">{label}</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400 w-14 shrink-0">{label}</span>
             <div class="flex-1">
                 <svg width="100%" height="18" viewBox="0 0 200 18"
                      preserveAspectRatio="none" class="overflow-visible">
-                    // Track
-                    <rect x="0" y="4" width="200" height="10" rx="5" fill="#1f2937"/>
+                    // Track — light: gray-200, dark: gray-800
+                    <rect x="0" y="4" width="200" height="10" rx="5" class="fill-gray-200 dark:fill-gray-800"/>
                     // Filled bar
                     <rect x="0" y="4"
                         width=format!("{:.2}", bar_w)
                         height="10" rx="5" fill=color
                         style="transition: width 0.6s ease"
                     />
-                    // Grid lines at 25 / 50 / 75 %
-                    <line x1="50"  y1="2" x2="50"  y2="16" stroke="#374151" stroke-width="1"/>
-                    <line x1="100" y1="2" x2="100" y2="16" stroke="#374151" stroke-width="1"/>
-                    <line x1="150" y1="2" x2="150" y2="16" stroke="#374151" stroke-width="1"/>
+                    // Grid lines at 25 / 50 / 75 % — light: gray-300, dark: gray-700
+                    <line x1="50"  y1="2" x2="50"  y2="16" class="stroke-gray-300 dark:stroke-gray-700" stroke-width="1"/>
+                    <line x1="100" y1="2" x2="100" y2="16" class="stroke-gray-300 dark:stroke-gray-700" stroke-width="1"/>
+                    <line x1="150" y1="2" x2="150" y2="16" class="stroke-gray-300 dark:stroke-gray-700" stroke-width="1"/>
                 </svg>
             </div>
-            <span class="text-xs text-gray-500 w-10 text-right shrink-0">
+            <span class="text-xs text-gray-500 dark:text-gray-400 w-10 text-right shrink-0">
                 {format!("{:.0}%", pct)}
             </span>
             <span class=format!("text-xs font-mono font-bold w-8 text-right shrink-0 {}", text_color)>
@@ -506,12 +508,12 @@ fn StorageOverview(total_bytes: i64) -> impl IntoView {
     view! {
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-10">
             <div class="shrink-0">
-                <p class="text-xs text-gray-500 mb-1">"已捕获数据总量"</p>
-                <p class="text-3xl font-bold text-blue-400 font-mono">{display}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">"已捕获数据总量"</p>
+                <p class="text-3xl font-bold text-blue-500 dark:text-blue-400 font-mono">{display}</p>
             </div>
             <div class="flex-1">
                 <svg width="100%" height="28" viewBox="0 0 300 28" preserveAspectRatio="none">
-                    <rect x="0" y="8" width="300" height="12" rx="6" fill="#1f2937"/>
+                    <rect x="0" y="8" width="300" height="12" rx="6" class="fill-gray-200 dark:fill-gray-800"/>
                     <defs>
                         <linearGradient id="storage-grad" x1="0%" y1="0%" x2="100%" y2="0%">
                             <stop offset="0%"   stop-color="#3b82f6"/>
@@ -523,11 +525,12 @@ fn StorageOverview(total_bytes: i64) -> impl IntoView {
                         height="12" rx="6" fill="url(#storage-grad)"
                         style="transition: width 0.8s ease"
                     />
-                    // Grid lines at 25 / 50 / 75 %
-                    <line x1="75"  y1="5" x2="75"  y2="23" stroke="#374151" stroke-width="1"/>
-                    <line x1="150" y1="5" x2="150" y2="23" stroke="#374151" stroke-width="1"/>
-                    <line x1="225" y1="5" x2="225" y2="23" stroke="#374151" stroke-width="1"/>
-                    <text x="295" y="20" text-anchor="end" fill="#4b5563"
+                    // Grid lines — light: gray-300, dark: gray-700
+                    <line x1="75"  y1="5" x2="75"  y2="23" class="stroke-gray-300 dark:stroke-gray-700" stroke-width="1"/>
+                    <line x1="150" y1="5" x2="150" y2="23" class="stroke-gray-300 dark:stroke-gray-700" stroke-width="1"/>
+                    <line x1="225" y1="5" x2="225" y2="23" class="stroke-gray-300 dark:stroke-gray-700" stroke-width="1"/>
+                    <text x="295" y="20" text-anchor="end"
+                          class="fill-gray-400 dark:fill-gray-500"
                           font-size="8" font-family="monospace">
                         {format!("{:.1}% / 1GB", fill_pct)}
                     </text>

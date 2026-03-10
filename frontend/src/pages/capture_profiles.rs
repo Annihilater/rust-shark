@@ -32,7 +32,7 @@ struct Interface {
 }
 
 #[derive(Serialize)]
-struct CreateProfileRequest {
+struct ProfileRequest {
     name: String,
     server_id: String,
     interface: String,
@@ -71,9 +71,12 @@ pub fn CaptureProfilesPage() -> impl IntoView {
     let interfaces = RwSignal::new(Vec::<Interface>::new());
     let show_modal = RwSignal::new(false);
     let error = RwSignal::new(Option::<String>::None);
-    let notice = RwSignal::new(Option::<String>::None);
+    let toast_msg = RwSignal::new(Option::<(bool, String)>::None); // (success, message)
     let loading_ifaces = RwSignal::new(false);
     let running_id = RwSignal::new(Option::<String>::None);
+
+    // None = 新建模式；Some(id) = 编辑模式
+    let edit_id = RwSignal::new(Option::<String>::None);
 
     // 表单字段
     let name = RwSignal::new(String::new());
@@ -104,9 +107,15 @@ pub fn CaptureProfilesPage() -> impl IntoView {
     load_profiles();
     load_servers();
 
-    // 服务器选择后自动加载网卡
+    // 服务器选择后自动加载网卡（仅新建模式触发，编辑模式手动控制）
+    let skip_iface_effect = RwSignal::new(false);
     Effect::new(move |_| {
         let sid = server_id.get();
+        if skip_iface_effect.get() {
+            // 编辑模式回填时跳过一次，避免清空 iface
+            skip_iface_effect.set(false);
+            return;
+        }
         if sid.is_empty() {
             interfaces.set(vec![]);
             iface.set(String::new());
@@ -125,12 +134,54 @@ pub fn CaptureProfilesPage() -> impl IntoView {
         });
     });
 
-    // ── 创建配置 ─────────────────────────────────────────────────────────
-    let on_create = move |ev: leptos::ev::SubmitEvent| {
+    // ── 重置表单 ──────────────────────────────────────────────────────────
+    let reset_form = move || {
+        edit_id.set(None);
+        name.set(String::new());
+        server_id.set(String::new());
+        iface.set(String::new());
+        filter.set(String::new());
+        duration.set("60".to_string());
+        packet_limit.set("1000".to_string());
+        interfaces.set(vec![]);
+        error.set(None);
+    };
+
+    // ── 打开编辑弹窗，回填表单 ────────────────────────────────────────────
+    let open_edit = move |profile: CaptureProfile| {
+        edit_id.set(Some(profile.id.clone()));
+        name.set(profile.name.clone());
+        filter.set(profile.filter.clone().unwrap_or_default());
+        duration.set(profile.duration.map(|d| d.to_string()).unwrap_or_else(|| "60".to_string()));
+        packet_limit.set(profile.packet_limit.map(|p| p.to_string()).unwrap_or_else(|| "1000".to_string()));
+        error.set(None);
+
+        let sid = profile.server_id.clone();
+        let saved_iface = profile.interface.clone();
+
+        // 标记跳过一次 Effect（server_id 变化时不要自动覆盖 iface）
+        skip_iface_effect.set(true);
+        server_id.set(sid.clone());
+
+        // 异步加载该服务器的网卡列表，加载完再设置 iface
+        loading_ifaces.set(true);
+        leptos::task::spawn_local(async move {
+            let path = format!("/api/servers/{}/interfaces", sid);
+            if let Ok(list) = crate::api::get::<Vec<Interface>>(&path).await {
+                interfaces.set(list);
+            }
+            loading_ifaces.set(false);
+            iface.set(saved_iface);
+        });
+
+        show_modal.set(true);
+    };
+
+    // ── 提交（新建 or 更新）────────────────────────────────────────────────
+    let on_submit = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
         error.set(None);
-        notice.set(None);
-        let req = CreateProfileRequest {
+        let req = ProfileRequest {
             name: name.get().trim().to_string(),
             server_id: server_id.get(),
             interface: iface.get(),
@@ -145,18 +196,34 @@ pub fn CaptureProfilesPage() -> impl IntoView {
             duration: duration.get().parse().ok(),
             packet_limit: packet_limit.get().parse().ok(),
         };
+        let id = edit_id.get();
         leptos::task::spawn_local(async move {
-            match crate::api::post::<_, CaptureProfile>("/api/capture-profiles", &req).await {
+            let result = if let Some(ref eid) = id {
+                // 编辑：PUT
+                crate::api::put::<_, CaptureProfile>(
+                    &format!("/api/capture-profiles/{}", eid),
+                    &req,
+                )
+                .await
+            } else {
+                // 新建：POST
+                crate::api::post::<_, CaptureProfile>("/api/capture-profiles", &req).await
+            };
+            match result {
                 Ok(_) => {
                     show_modal.set(false);
-                    name.set(String::new());
-                    server_id.set(String::new());
-                    iface.set(String::new());
-                    filter.set(String::new());
-                    duration.set("60".to_string());
-                    packet_limit.set("1000".to_string());
-                    notice.set(Some("配置创建成功".to_string()));
+                    let msg = if id.is_some() {
+                        "配置已更新".to_string()
+                    } else {
+                        "配置创建成功".to_string()
+                    };
+                    reset_form();
+                    toast_msg.set(Some((true, msg)));
                     load_profiles();
+                    leptos::task::spawn_local(async move {
+                        gloo_timers::future::TimeoutFuture::new(5_000).await;
+                        toast_msg.set(None);
+                    });
                 }
                 Err(e) => error.set(Some(e)),
             }
@@ -165,12 +232,16 @@ pub fn CaptureProfilesPage() -> impl IntoView {
 
     // ── 删除配置 ─────────────────────────────────────────────────────────
     let on_delete = move |id: String| {
-        notice.set(None);
+        toast_msg.set(None);
         leptos::task::spawn_local(async move {
             let path = format!("/api/capture-profiles/{}", id);
             if crate::api::delete::<serde_json::Value>(&path).await.is_ok() {
-                notice.set(Some("已删除".to_string()));
+                toast_msg.set(Some((true, "已删除".to_string())));
                 load_profiles();
+                leptos::task::spawn_local(async move {
+                    gloo_timers::future::TimeoutFuture::new(5_000).await;
+                    toast_msg.set(None);
+                });
             }
         });
     };
@@ -178,7 +249,7 @@ pub fn CaptureProfilesPage() -> impl IntoView {
     // ── 立即执行（用此配置创建抓包任务） ─────────────────────────────────
     let on_run = move |profile: CaptureProfile| {
         running_id.set(Some(profile.id.clone()));
-        notice.set(None);
+        toast_msg.set(None);
         leptos::task::spawn_local(async move {
             let req = RunCaptureRequest {
                 server_id: profile.server_id.clone(),
@@ -192,13 +263,20 @@ pub fn CaptureProfilesPage() -> impl IntoView {
             };
             match crate::api::post::<_, serde_json::Value>("/api/captures", &req).await {
                 Ok(_) => {
-                    notice.set(Some(format!(
-                        "已启动「{}」，前往抓包任务页面查看",
-                        profile.name
-                    )));
+                    let msg = format!("已启动「{}」，前往抓包任务页面查看", profile.name);
+                    toast_msg.set(Some((true, msg)));
+                    leptos::task::spawn_local(async move {
+                        gloo_timers::future::TimeoutFuture::new(5_000).await;
+                        toast_msg.set(None);
+                    });
                 }
                 Err(e) => {
-                    notice.set(Some(format!("启动失败: {}", e)));
+                    let msg = format!("启动失败: {}", e);
+                    toast_msg.set(Some((false, msg)));
+                    leptos::task::spawn_local(async move {
+                        gloo_timers::future::TimeoutFuture::new(5_000).await;
+                        toast_msg.set(None);
+                    });
                 }
             }
             running_id.set(None);
@@ -221,23 +299,23 @@ pub fn CaptureProfilesPage() -> impl IntoView {
                         </a>
                         <button
                             class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-                            on:click=move |_| { error.set(None); notice.set(None); show_modal.set(true); }
+                            on:click=move |_| { reset_form(); show_modal.set(true); }
                         >"+ 新建配置"</button>
                     </div>
                 </div>
 
-                // 通知提示
-                {move || notice.get().map(|s| {
-                    let is_err = s.starts_with("启动失败") || s.starts_with("删除失败");
-                    let cls = if is_err {
-                        "bg-red-900/40 border border-red-700/60 text-red-300"
-                    } else {
-                        "bg-green-900/40 border border-green-700/60 text-green-300"
-                    };
+                // 右上角 Toast 通知
+                {move || toast_msg.get().map(|(success, msg)| {
+                    let bg = if success { "bg-green-600" } else { "bg-red-600" };
+                    let icon = if success { "✓" } else { "✗" };
                     view! {
-                        <div class=format!("{} px-4 py-2.5 rounded-lg text-sm mb-4 flex items-center gap-2", cls)>
-                            <span>{if is_err { "✗" } else { "✓" }}</span>
-                            <span>{s}</span>
+                        <div class=format!("fixed top-4 right-4 {} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50 max-w-sm", bg)>
+                            <span class="text-base font-bold shrink-0">{icon}</span>
+                            <span class="text-sm flex-1">{msg}</span>
+                            <button
+                                class="ml-1 text-white/70 hover:text-white transition-colors text-lg leading-none shrink-0"
+                                on:click=move |_| toast_msg.set(None)
+                            >"✕"</button>
                         </div>
                     }
                 })}
@@ -253,18 +331,19 @@ pub fn CaptureProfilesPage() -> impl IntoView {
                                 <p class="text-sm text-gray-600 mt-1">"创建配置后可一键重复执行抓包任务"</p>
                                 <button
                                     class="mt-6 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm transition-colors"
-                                    on:click=move |_| show_modal.set(true)
+                                    on:click=move |_| { reset_form(); show_modal.set(true); }
                                 >"+ 新建第一个配置"</button>
                             </div>
                         }.into_any()
                     } else {
                         view! {
-                            <div class="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                            <div class="space-y-3">
                                 {ps.into_iter().map(|profile| {
-                                    let pid_del    = profile.id.clone();
-                                    let pid_run    = profile.id.clone();
-                                    let pid_cls    = profile.id.clone();
-                                    let profile_run = profile.clone();
+                                    let pid_del     = profile.id.clone();
+                                    let pid_run     = profile.id.clone();
+                                    let pid_cls     = profile.id.clone();
+                                    let profile_run  = profile.clone();
+                                    let profile_edit = profile.clone();
 
                                     let server_name = servers.get()
                                         .into_iter()
@@ -280,56 +359,63 @@ pub fn CaptureProfilesPage() -> impl IntoView {
                                     });
 
                                     view! {
-                                        <div class="card hover:border-gray-300 dark:hover:border-gray-600 rounded-xl p-4 transition-all flex flex-col gap-3">
-                                            // 标题 + 删除
-                                            <div class="flex items-start justify-between gap-2">
-                                                <div class="min-w-0">
-                                                    <h3 class="font-semibold truncate">{profile.name.clone()}</h3>
-                                                    <p class="text-xs text-gray-500 mt-0.5 truncate" title=server_name.clone()>{server_name.clone()}</p>
-                                                </div>
-                                                <button
-                                                    class="text-red-400 hover:text-red-500 transition-colors text-sm shrink-0 px-1 py-0.5"
-                                                    on:click=move |_| on_delete(pid_del.clone())
-                                                >"✕"</button>
-                                            </div>
-
-                                            // 配置标签
-                                            <div class="flex flex-wrap gap-1.5">
-                                                <span class="text-xs bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800/50 dark:text-blue-300 px-2 py-0.5 rounded font-mono shrink-0">
-                                                    {profile.interface.clone()}
-                                                </span>
-                                                {profile.filter.clone().map(|f| {
-                                                    let ft = f.clone();
-                                                    view! {
-                                                        <span class="text-xs badge-gray px-2 py-0.5 rounded font-mono truncate max-w-[180px]" title=ft>
-                                                            {f}
+                                        <div class="card rounded-xl p-4 hover:border-gray-300 dark:hover:border-gray-600 transition-all">
+                                            <div class="flex items-center justify-between gap-4">
+                                                // 左侧：名称 + 服务器 + 标签行
+                                                <div class="min-w-0 flex-1">
+                                                    <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                                        <h3 class="font-semibold">{profile.name.clone()}</h3>
+                                                        <span class="text-xs text-gray-500 dark:text-gray-400 truncate"
+                                                            title=server_name.clone()>
+                                                            {server_name.clone()}
                                                         </span>
-                                                    }
-                                                })}
-                                                {dur_tag.map(|d| view! {
-                                                    <span class="text-xs badge-gray px-2 py-0.5 rounded">{d}</span>
-                                                })}
-                                                {pkt_tag.map(|p| view! {
-                                                    <span class="text-xs badge-gray px-2 py-0.5 rounded">{p}</span>
-                                                })}
-                                            </div>
+                                                    </div>
+                                                    <div class="flex flex-wrap gap-1.5 items-center">
+                                                        <span class="text-xs bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800/50 dark:text-blue-300 px-2 py-0.5 rounded font-mono shrink-0">
+                                                            {profile.interface.clone()}
+                                                        </span>
+                                                        {profile.filter.clone().map(|f| {
+                                                            let ft = f.clone();
+                                                            view! {
+                                                                <span class="text-xs badge-gray px-2 py-0.5 rounded font-mono truncate max-w-[200px]" title=ft>
+                                                                    {f}
+                                                                </span>
+                                                            }
+                                                        })}
+                                                        {dur_tag.map(|d| view! {
+                                                            <span class="text-xs badge-gray px-2 py-0.5 rounded">{d}</span>
+                                                        })}
+                                                        {pkt_tag.map(|p| view! {
+                                                            <span class="text-xs badge-gray px-2 py-0.5 rounded">{p}</span>
+                                                        })}
+                                                        <span class="text-xs text-gray-400 font-mono ml-1">{profile.created_at.clone()}</span>
+                                                    </div>
+                                                </div>
 
-                                            // 底部：时间 + 执行按钮
-                                            <div class="flex items-center justify-between mt-auto">
-                                                <span class="text-xs text-gray-400 font-mono">{profile.created_at.clone()}</span>
-                                                <button
-                                                    class="text-sm bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-                                                    disabled=move || running_id.get() == Some(pid_run.clone())
-                                                    on:click=move |_| on_run(profile_run.clone())
-                                                >
-                                                    {move || {
-                                                        if running_id.get() == Some(pid_cls.clone()) {
-                                                            "启动中…"
-                                                        } else {
-                                                            "▶ 立即执行"
-                                                        }
-                                                    }}
-                                                </button>
+                                                // 右侧：执行 + 编辑 + 删除
+                                                <div class="flex items-center gap-2 shrink-0">
+                                                    <button
+                                                        class="text-sm bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                                                        disabled=move || running_id.get() == Some(pid_run.clone())
+                                                        on:click=move |_| on_run(profile_run.clone())
+                                                    >
+                                                        {move || {
+                                                            if running_id.get() == Some(pid_cls.clone()) {
+                                                                "启动中…"
+                                                            } else {
+                                                                "▶ 立即执行"
+                                                            }
+                                                        }}
+                                                    </button>
+                                                    <button
+                                                        class="text-blue-500 dark:text-blue-400 hover:text-blue-400 dark:hover:text-blue-300 text-sm px-3 py-1.5 transition-colors"
+                                                        on:click=move |_| open_edit(profile_edit.clone())
+                                                    >"编辑"</button>
+                                                    <button
+                                                        class="text-red-500 dark:text-red-400 hover:text-red-400 dark:hover:text-red-300 text-sm px-3 py-1.5 transition-colors"
+                                                        on:click=move |_| on_delete(pid_del.clone())
+                                                    >"删除"</button>
+                                                </div>
                                             </div>
                                         </div>
                                     }
@@ -340,13 +426,19 @@ pub fn CaptureProfilesPage() -> impl IntoView {
                 }}
             </div>
 
-            // ── 新建配置弹窗 ──────────────────────────────────────────────
+            // ── 新建 / 编辑 配置弹窗（复用同一表单）─────────────────────
             <Modal
                 show=show_modal.read_only()
-                title="新建抓包配置"
-                on_close=Callback::new(move |_| show_modal.set(false))
+                title=Signal::derive(move || {
+                    if edit_id.get().is_some() {
+                        "编辑抓包配置".to_string()
+                    } else {
+                        "新建抓包配置".to_string()
+                    }
+                })
+                on_close=Callback::new(move |_| { show_modal.set(false); reset_form(); })
             >
-                <form on:submit=on_create class="space-y-3">
+                <form on:submit=on_submit class="space-y-3">
                     <div>
                         <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"配置名称"</label>
                         <input
@@ -430,10 +522,12 @@ pub fn CaptureProfilesPage() -> impl IntoView {
                     <div class="flex gap-3 pt-1">
                         <button type="submit"
                             class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
-                        >"保存配置"</button>
+                        >
+                            {move || if edit_id.get().is_some() { "保存修改" } else { "保存配置" }}
+                        </button>
                         <button type="button"
                             class="flex-1 btn-secondary py-2 rounded-lg text-sm transition-colors"
-                            on:click=move |_| show_modal.set(false)
+                            on:click=move |_| { show_modal.set(false); reset_form(); }
                         >"取消"</button>
                     </div>
                 </form>
