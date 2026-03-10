@@ -67,3 +67,54 @@ pub fn init_auth() {
 pub fn use_auth() -> RwSignal<AuthState> {
     *AUTH.get().expect("call init_auth() first")
 }
+
+// ── 主题管理 ─────────────────────────────────────────────────────────────────
+
+/// true = 深色模式（dark），false = 浅色模式（light）
+static DARK_MODE: OnceLock<RwSignal<bool>> = OnceLock::new();
+
+fn load_dark_mode() -> bool {
+    // 优先读 LocalStorage
+    if let Ok(v) = gloo_storage::LocalStorage::get::<String>("theme") {
+        return v == "dark";
+    }
+    // 通过 js_sys 检测系统媒体查询偏好
+    let prefers_dark = js_sys::eval("window.matchMedia('(prefers-color-scheme: dark)').matches")
+        .ok()
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    prefers_dark
+}
+
+fn apply_dark_mode(dark: bool) {
+    if let Some(window) = web_sys::window() {
+        if let Some(doc) = window.document() {
+            if let Some(root) = doc.document_element() {
+                let list = root.class_list();
+                if dark {
+                    list.add_1("dark").ok();
+                } else {
+                    list.remove_1("dark").ok();
+                }
+            }
+        }
+    }
+    gloo_storage::LocalStorage::set("theme", if dark { "dark" } else { "light" }).ok();
+}
+
+pub fn init_theme() {
+    let dark = load_dark_mode();
+    apply_dark_mode(dark);
+    DARK_MODE.get_or_init(|| RwSignal::new(dark));
+}
+
+pub fn use_dark_mode() -> RwSignal<bool> {
+    *DARK_MODE.get().expect("call init_theme() first")
+}
+
+pub fn toggle_theme() {
+    let signal = use_dark_mode();
+    let new_dark = !signal.get_untracked();
+    apply_dark_mode(new_dark);
+    signal.set(new_dark);
+}
