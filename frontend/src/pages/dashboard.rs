@@ -162,7 +162,7 @@ pub fn DashboardPage() -> impl IntoView {
                 // Analytics Section
                 // ══════════════════════════════════════════════════════════
                 <div class="mb-4">
-                    <h2 class="text-lg font-semibold text-white border-l-4 border-blue-500 pl-3">
+                    <h2 class="text-lg font-semibold border-l-4 border-blue-500 pl-3">
                         "抓包分析"
                     </h2>
                 </div>
@@ -197,8 +197,8 @@ pub fn DashboardPage() -> impl IntoView {
                                 // Row 1: Donut chart + Bar chart
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                     // ── Donut Chart ──────────────────────
-                                    <div class="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-6">
-                                        <h3 class="text-sm font-semibold text-gray-400 mb-4">
+                                    <div class="card-dark rounded-2xl p-6">
+                                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4">
                                             "🍩 抓包状态分布"
                                         </h3>
                                         <div class="flex items-center gap-6">
@@ -212,31 +212,31 @@ pub fn DashboardPage() -> impl IntoView {
                                             <div class="flex flex-col gap-2 text-sm">
                                                 <div class="flex items-center gap-2">
                                                     <span class="w-3 h-3 rounded-full bg-green-500 shrink-0"></span>
-                                                    <span class="text-gray-300">"完成"</span>
-                                                    <span class="text-green-400 font-mono font-bold ml-1">{done}</span>
+                                                    <span class="text-gray-600 dark:text-gray-300">"完成"</span>
+                                                    <span class="text-green-600 dark:text-green-400 font-mono font-bold ml-1">{done}</span>
                                                 </div>
                                                 <div class="flex items-center gap-2">
                                                     <span class="w-3 h-3 rounded-full bg-blue-500 shrink-0"></span>
-                                                    <span class="text-gray-300">"运行中"</span>
-                                                    <span class="text-blue-400 font-mono font-bold ml-1">{running}</span>
+                                                    <span class="text-gray-600 dark:text-gray-300">"运行中"</span>
+                                                    <span class="text-blue-600 dark:text-blue-400 font-mono font-bold ml-1">{running}</span>
                                                 </div>
                                                 <div class="flex items-center gap-2">
                                                     <span class="w-3 h-3 rounded-full bg-gray-500 shrink-0"></span>
-                                                    <span class="text-gray-300">"已取消"</span>
-                                                    <span class="text-gray-400 font-mono font-bold ml-1">{cancelled}</span>
+                                                    <span class="text-gray-600 dark:text-gray-300">"已取消"</span>
+                                                    <span class="text-gray-500 dark:text-gray-400 font-mono font-bold ml-1">{cancelled}</span>
                                                 </div>
                                                 <div class="flex items-center gap-2">
                                                     <span class="w-3 h-3 rounded-full bg-red-500 shrink-0"></span>
-                                                    <span class="text-gray-300">"失败"</span>
-                                                    <span class="text-red-400 font-mono font-bold ml-1">{failed}</span>
+                                                    <span class="text-gray-600 dark:text-gray-300">"失败"</span>
+                                                    <span class="text-red-600 dark:text-red-400 font-mono font-bold ml-1">{failed}</span>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
                                     // ── Horizontal Bar Chart ─────────────
-                                    <div class="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-6">
-                                        <h3 class="text-sm font-semibold text-gray-400 mb-4">
+                                    <div class="card-dark rounded-2xl p-6">
+                                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4">
                                             "📊 各状态数量"
                                         </h3>
                                         <div class="space-y-4">
@@ -273,8 +273,8 @@ pub fn DashboardPage() -> impl IntoView {
                                 </div>
 
                                 // Row 2: Storage overview
-                                <div class="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-6 mb-6">
-                                    <h3 class="text-sm font-semibold text-gray-400 mb-4">"💾 存储概览"</h3>
+                                <div class="card-dark rounded-2xl p-6 mb-6">
+                                    <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4">"💾 存储概览"</h3>
                                     <StorageOverview total_bytes=total_bytes />
                                 </div>
                             </div>
@@ -284,7 +284,7 @@ pub fn DashboardPage() -> impl IntoView {
 
                 // ── Recent Activity ───────────────────────────────────────
                 <div class="mb-4 mt-2">
-                    <h2 class="text-lg font-semibold text-white border-l-4 border-purple-500 pl-3">
+                    <h2 class="text-lg font-semibold border-l-4 border-purple-500 pl-3">
                         "最近抓包活动"
                     </h2>
                 </div>
@@ -301,37 +301,37 @@ pub fn DashboardPage() -> impl IntoView {
 
                         if display.is_empty() {
                             view! {
-                                <div class="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-8 text-center mb-8">
+                                <div class="card-dark rounded-2xl p-8 text-center mb-8">
                                     <div class="text-3xl mb-2">"📭"</div>
                                     <p class="text-gray-500 text-sm">"暂无抓包活动记录"</p>
                                 </div>
                             }.into_any()
                         } else {
                             view! {
-                                <div class="bg-gray-900/80 border border-gray-700/50 rounded-2xl overflow-hidden mb-8">
-                                    <div class="divide-y divide-gray-700/50">
+                                <div class="card-dark rounded-2xl overflow-hidden mb-8">
+                                    <div class="divide-y divide-gray-200 dark:divide-gray-700/50">
                                         {display.into_iter().map(|cap| {
                                             let rel = relative_time(&cap.created_at);
                                             let (icon, color) = match cap.status.as_str() {
-                                                "done"      => ("✓", "text-green-400"),
-                                                "running"   => ("⟳", "text-blue-400"),
-                                                "cancelled" => ("⊘", "text-gray-400"),
-                                                "failed"    => ("✗", "text-red-400"),
-                                                _           => ("○", "text-yellow-400"),
+                                                "done"      => ("✓", "text-green-500 dark:text-green-400"),
+                                                "running"   => ("⟳", "text-blue-500 dark:text-blue-400"),
+                                                "cancelled" => ("⊘", "text-gray-500 dark:text-gray-400"),
+                                                "failed"    => ("✗", "text-red-500 dark:text-red-400"),
+                                                _           => ("○", "text-yellow-500 dark:text-yellow-400"),
                                             };
                                             let size_str = cap.file_size
                                                 .map(format_bytes)
                                                 .unwrap_or_else(|| "—".to_string());
                                             view! {
-                                                <div class="flex items-center gap-4 px-6 py-4 hover:bg-gray-800/40 transition-colors">
+                                                <div class="flex items-center gap-4 px-6 py-4 hover:bg-gray-100 dark:hover:bg-gray-800/40 transition-colors">
                                                     <span class=format!("text-lg font-bold w-6 text-center shrink-0 {}", color)>
                                                         {icon}
                                                     </span>
-                                                    <span class="font-mono text-sm text-gray-200 flex-1 truncate">
+                                                    <span class="font-mono text-sm flex-1 truncate">
                                                         {cap.interface.clone()}
                                                     </span>
-                                                    <span class="text-xs text-gray-400 shrink-0">{rel}</span>
-                                                    <span class="text-xs font-mono text-gray-500 shrink-0 w-20 text-right">
+                                                    <span class="text-xs text-gray-500 shrink-0">{rel}</span>
+                                                    <span class="text-xs font-mono text-gray-400 shrink-0 w-20 text-right">
                                                         {size_str}
                                                     </span>
                                                     <a
@@ -548,17 +548,17 @@ fn StatCard(
     color: &'static str,
 ) -> impl IntoView {
     let bg = match color {
-        "green" => "bg-green-900/30 border-green-700",
-        "purple" => "bg-purple-900/30 border-purple-700",
-        "red" => "bg-red-900/30 border-red-700",
-        _ => "bg-blue-900/30 border-blue-700",
+        "green" => "bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-700",
+        "purple" => "bg-purple-50 border-purple-200 dark:bg-purple-900/30 dark:border-purple-700",
+        "red" => "bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-700",
+        _ => "bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-700",
     };
 
     view! {
         <div class=format!("rounded-xl p-5 border {} ", bg)>
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-gray-400 text-sm">{title}</p>
+                    <p class="text-gray-500 dark:text-gray-400 text-sm">{title}</p>
                     <p class="text-3xl font-bold mt-1">{value}</p>
                 </div>
                 <div class="text-3xl">{icon}</div>
@@ -580,12 +580,12 @@ fn QuickAction(
     view! {
         <a
             href=href
-            class="bg-gray-800 border border-gray-700 rounded-xl p-5 flex items-center gap-4 hover:border-blue-600 hover:bg-gray-750 transition-all group"
+            class="card rounded-xl p-5 flex items-center gap-4 hover:border-blue-500 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-gray-750 transition-all group"
         >
             <div class="text-3xl">{icon}</div>
             <div>
-                <p class="font-medium group-hover:text-blue-400 transition-colors">{title}</p>
-                <p class="text-sm text-gray-400 mt-0.5">{desc}</p>
+                <p class="font-medium group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{title}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{desc}</p>
             </div>
         </a>
     }

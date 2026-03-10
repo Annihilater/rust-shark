@@ -204,14 +204,14 @@ pub fn AnalysisPage() -> impl IntoView {
 
     // ── Load packets for selected capture ────────────────────────────────────
     let load_packets = move || {
-        let maybe_id = selected_capture_id.get();
+        let maybe_id = selected_capture_id.get_untracked();
         let id = match maybe_id {
             Some(id) => id,
             None => return,
         };
         loading.set(true);
         selected.set(None);
-        let f = filter.get();
+        let f = filter.get_untracked();
         leptos::task::spawn_local(async move {
             let mut path = format!("/api/captures/{}/packets?limit=1000", id);
             if !f.is_empty() {
@@ -322,7 +322,7 @@ pub fn AnalysisPage() -> impl IntoView {
                     }}
                     <a
                         href="/capture-guide"
-                        class="ml-auto text-xs text-blue-400 hover:text-blue-300 transition-colors border border-blue-800 hover:border-blue-600 rounded px-2 py-1"
+                        class="ml-auto text-xs text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300 transition-colors border border-blue-300 hover:border-blue-400 dark:border-blue-800 dark:hover:border-blue-600 rounded px-2 py-1"
                     >
                         "📖 过滤器指南"
                     </a>
@@ -333,18 +333,18 @@ pub fn AnalysisPage() -> impl IntoView {
                     {move || {
                         if captures_loading.get() {
                             view! {
-                                <div class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-500">
+                                <div class="w-full panel-dark rounded-lg px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                                     "正在加载抓包文件列表…"
                                 </div>
                             }.into_any()
                         } else if captures.get().is_empty() {
                             view! {
-                                <div class="bg-gray-800 border border-gray-700 rounded-lg px-4 py-6 text-center">
+                                <div class="panel-dark rounded-lg px-4 py-6 text-center">
                                     <div class="text-3xl mb-2">"📭"</div>
-                                    <p class="text-sm text-gray-400">"暂无已完成的抓包文件"</p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">"暂无已完成的抓包文件"</p>
                                     <a
                                         href="/captures"
-                                        class="inline-block mt-2 text-xs text-blue-400 hover:text-blue-300"
+                                        class="inline-block mt-2 text-xs text-blue-500 hover:text-blue-400 dark:text-blue-400 dark:hover:text-blue-300"
                                     >"前往抓包任务页面创建抓包 →"</a>
                                 </div>
                             }.into_any()
@@ -400,7 +400,7 @@ pub fn AnalysisPage() -> impl IntoView {
                                 // 过滤器栏
                                 <div class="flex gap-2 mb-4">
                                     <input
-                                        class="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-sm font-mono text-white focus:outline-none focus:border-blue-500 placeholder-gray-500"
+                                        class="flex-1 input rounded-lg px-4 py-2 text-sm font-mono text-gray-900 dark:text-white focus:outline-none"
                                         placeholder="Wireshark 过滤器: tcp, http, ip.addr==1.2.3.4, tcp.port==443..."
                                         prop:value=filter
                                         on:input=move |ev| filter.set(event_target_value(&ev))
@@ -413,36 +413,36 @@ pub fn AnalysisPage() -> impl IntoView {
                                         on:click=move |_| load_packets()
                                     >"应用过滤"</button>
                                     <button
-                                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                                        class="btn-secondary px-4 py-2 rounded-lg text-sm transition-colors"
                                         on:click=move |_| {
                                             filter.set(String::new());
                                             load_packets();
                                         }
                                     >"清除"</button>
                                     <button
-                                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                                        class="btn-secondary px-4 py-2 rounded-lg text-sm transition-colors"
                                         on:click=move |_| on_download()
                                     >"⬇ 下载 PCAP"</button>
                                 </div>
 
                                 {move || error.get().map(|e| view! {
-                                    <div class="bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm mb-4">{e}</div>
+                                    <div class="notice-error px-4 py-2 rounded-lg text-sm mb-4">{e}</div>
                                 })}
 
                                 // 主内容区：左列表 + 右详情
                                 <div class="flex gap-4" style="height: calc(100vh - 260px)">
                                     // ── 左侧：数据包列表 ──────────────────────
-                                    <div class="flex-1 bg-gray-900 border border-gray-700 rounded-xl overflow-auto min-w-0">
+                                    <div class="flex-1 panel-dark rounded-xl overflow-auto min-w-0">
                                         <table class="w-full text-xs">
-                                            <thead class="sticky top-0 bg-gray-800 border-b border-gray-700 z-10">
+                                            <thead class="sticky top-0 panel-head z-10">
                                                 <tr>
-                                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-12">"No."</th>
-                                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-32">"时间 (s)"</th>
-                                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-36">"源地址"</th>
-                                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-36">"目标地址"</th>
-                                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-20">"协议"</th>
-                                                    <th class="text-left px-3 py-2 text-gray-400 font-medium w-16">"长度"</th>
-                                                    <th class="text-left px-3 py-2 text-gray-400 font-medium">"信息"</th>
+                                                    <th class="text-left px-3 py-2 text-gray-500 dark:text-gray-400 font-medium w-12">"No."</th>
+                                                    <th class="text-left px-3 py-2 text-gray-500 dark:text-gray-400 font-medium w-32">"时间 (s)"</th>
+                                                    <th class="text-left px-3 py-2 text-gray-500 dark:text-gray-400 font-medium w-36">"源地址"</th>
+                                                    <th class="text-left px-3 py-2 text-gray-500 dark:text-gray-400 font-medium w-36">"目标地址"</th>
+                                                    <th class="text-left px-3 py-2 text-gray-500 dark:text-gray-400 font-medium w-20">"协议"</th>
+                                                    <th class="text-left px-3 py-2 text-gray-500 dark:text-gray-400 font-medium w-16">"长度"</th>
+                                                    <th class="text-left px-3 py-2 text-gray-500 dark:text-gray-400 font-medium">"信息"</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -474,32 +474,32 @@ pub fn AnalysisPage() -> impl IntoView {
                                                                 .map(|s| s.number == no)
                                                                 .unwrap_or(false);
                                                             let proto_color = match p.protocol.as_str() {
-                                                                "TCP"  => "text-blue-300",
-                                                                "UDP"  => "text-green-300",
-                                                                "HTTP" | "HTTPS" | "HTTP/2" => "text-orange-300",
-                                                                "DNS"  => "text-purple-300",
-                                                                "ICMP" | "ICMPv6" => "text-yellow-300",
-                                                                "TLS" | "SSL"  => "text-teal-300",
-                                                                "ARP"  => "text-pink-300",
-                                                                _ => "text-gray-300",
+                                                                "TCP"  => "text-blue-600 dark:text-blue-300",
+                                                                "UDP"  => "text-green-600 dark:text-green-300",
+                                                                "HTTP" | "HTTPS" | "HTTP/2" => "text-orange-600 dark:text-orange-300",
+                                                                "DNS"  => "text-purple-600 dark:text-purple-300",
+                                                                "ICMP" | "ICMPv6" => "text-yellow-600 dark:text-yellow-300",
+                                                                "TLS" | "SSL"  => "text-teal-600 dark:text-teal-300",
+                                                                "ARP"  => "text-pink-600 dark:text-pink-300",
+                                                                _ => "text-gray-600 dark:text-gray-300",
                                                             };
                                                             let row_bg = if is_sel {
-                                                                "bg-blue-900/60 cursor-pointer border-l-2 border-blue-500"
+                                                                "bg-blue-100 dark:bg-blue-900/60 cursor-pointer border-l-2 border-blue-500"
                                                             } else {
-                                                                "hover:bg-gray-800/80 cursor-pointer border-l-2 border-transparent"
+                                                                "hover:bg-gray-100 dark:hover:bg-gray-800/80 cursor-pointer border-l-2 border-transparent"
                                                             };
                                                             view! {
                                                                 <tr
                                                                     class=row_bg
                                                                     on:click=move |_| on_select(no)
                                                                 >
-                                                                    <td class="px-3 py-1.5 text-gray-500 tabular-nums">{p.number}</td>
-                                                                    <td class="px-3 py-1.5 font-mono text-gray-400 tabular-nums">{p.time}</td>
-                                                                    <td class="px-3 py-1.5 font-mono text-gray-300">{p.source}</td>
-                                                                    <td class="px-3 py-1.5 font-mono text-gray-300">{p.destination}</td>
+                                                                    <td class="px-3 py-1.5 text-gray-500 dark:text-gray-500 tabular-nums">{p.number}</td>
+                                                                    <td class="px-3 py-1.5 font-mono text-gray-600 dark:text-gray-400 tabular-nums">{p.time}</td>
+                                                                    <td class="px-3 py-1.5 font-mono text-gray-700 dark:text-gray-300">{p.source}</td>
+                                                                    <td class="px-3 py-1.5 font-mono text-gray-700 dark:text-gray-300">{p.destination}</td>
                                                                     <td class=format!("px-3 py-1.5 font-medium font-mono {}", proto_color)>{p.protocol}</td>
-                                                                    <td class="px-3 py-1.5 text-gray-400 tabular-nums">{p.length}</td>
-                                                                    <td class="px-3 py-1.5 text-gray-300 truncate max-w-xs">{p.info}</td>
+                                                                    <td class="px-3 py-1.5 text-gray-600 dark:text-gray-400 tabular-nums">{p.length}</td>
+                                                                    <td class="px-3 py-1.5 text-gray-700 dark:text-gray-300 truncate max-w-xs">{p.info}</td>
                                                                 </tr>
                                                             }
                                                         }).collect::<Vec<_>>().into_any()
@@ -513,25 +513,25 @@ pub fn AnalysisPage() -> impl IntoView {
                                     <div class="w-[560px] shrink-0 flex flex-col gap-3 overflow-auto">
                                         {move || match selected.get() {
                                             None => view! {
-                                                <div class="flex-1 bg-gray-900 border border-gray-700 rounded-xl flex flex-col items-center justify-center text-gray-500 h-full">
+                                                <div class="flex-1 panel-dark rounded-xl flex flex-col items-center justify-center text-gray-500 h-full">
                                                     <div class="text-5xl mb-3">"🔍"</div>
                                                     <p class="text-sm font-medium">"点击左侧数据包查看详情"</p>
-                                                    <p class="text-xs text-gray-600 mt-1">"可查看协议树和原始字节"</p>
+                                                    <p class="text-xs text-gray-400 dark:text-gray-600 mt-1">"可查看协议树和原始字节"</p>
                                                 </div>
                                             }.into_any(),
                                             Some(detail) => view! {
                                                 <div class="flex flex-col gap-3 h-full">
                                                     // 包头信息
-                                                    <div class="bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 flex items-center gap-3">
-                                                        <span class="text-blue-400 font-bold text-lg">"#"{detail.number}</span>
-                                                        <span class="text-xs text-gray-500">"数据包详情"</span>
+                                                    <div class="panel-dark rounded-xl px-4 py-3 flex items-center gap-3">
+                                                        <span class="text-blue-600 dark:text-blue-400 font-bold text-lg">"#"{detail.number}</span>
+                                                        <span class="text-xs text-gray-500 dark:text-gray-500">"数据包详情"</span>
                                                     </div>
 
                                                     // 协议树
-                                                    <div class="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden flex flex-col" style="flex: 1 1 0; min-height: 200px">
-                                                        <div class="px-4 py-2 bg-gray-800 border-b border-gray-700 flex items-center gap-2">
-                                                            <span class="text-xs font-semibold text-gray-300 uppercase tracking-wide">"协议树"</span>
-                                                            <span class="text-xs text-gray-600">"(Protocol Tree)"</span>
+                                                    <div class="panel-dark rounded-xl overflow-hidden flex flex-col" style="flex: 1 1 0; min-height: 200px">
+                                                        <div class="px-4 py-2 panel-head flex items-center gap-2">
+                                                            <span class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">"协议树"</span>
+                                                            <span class="text-xs text-gray-400 dark:text-gray-600">"(Protocol Tree)"</span>
                                                         </div>
                                                         <div class="overflow-auto flex-1 p-3">
                                                             {
@@ -542,7 +542,7 @@ pub fn AnalysisPage() -> impl IntoView {
                                                                     }.into_any()
                                                                 } else {
                                                                     view! {
-                                                                        <pre class="text-xs font-mono text-green-300 leading-relaxed whitespace-pre-wrap">{tree_text}</pre>
+                                                                        <pre class="text-xs font-mono text-green-700 dark:text-green-300 leading-relaxed whitespace-pre-wrap">{tree_text}</pre>
                                                                     }.into_any()
                                                                 }
                                                             }
@@ -550,10 +550,10 @@ pub fn AnalysisPage() -> impl IntoView {
                                                     </div>
 
                                                     // 原始字节
-                                                    <div class="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden flex flex-col" style="flex: 0 0 auto; max-height: 280px">
-                                                        <div class="px-4 py-2 bg-gray-800 border-b border-gray-700 flex items-center gap-2">
-                                                            <span class="text-xs font-semibold text-gray-300 uppercase tracking-wide">"原始字节"</span>
-                                                            <span class="text-xs text-gray-600">"(Raw Bytes / Hex Dump)"</span>
+                                                    <div class="panel-dark rounded-xl overflow-hidden flex flex-col" style="flex: 0 0 auto; max-height: 280px">
+                                                        <div class="px-4 py-2 panel-head flex items-center gap-2">
+                                                            <span class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">"原始字节"</span>
+                                                            <span class="text-xs text-gray-400 dark:text-gray-600">"(Raw Bytes / Hex Dump)"</span>
                                                         </div>
                                                         <div class="overflow-auto p-3">
                                                             {
@@ -564,7 +564,7 @@ pub fn AnalysisPage() -> impl IntoView {
                                                                     }.into_any()
                                                                 } else {
                                                                     view! {
-                                                                        <pre class="text-xs font-mono text-blue-300 leading-relaxed">{hex_dump}</pre>
+                                                                        <pre class="text-xs font-mono text-blue-700 dark:text-blue-300 leading-relaxed">{hex_dump}</pre>
                                                                     }.into_any()
                                                                 }
                                                             }

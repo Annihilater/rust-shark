@@ -382,7 +382,7 @@ pub fn ServersPage() -> impl IntoView {
                             _         => "● 未知",
                         };
                         view! {
-                            <div class="bg-gray-800 border border-gray-700 rounded-xl p-4">
+                            <div class="card rounded-xl p-4">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <div class="flex items-center gap-2 mb-0.5">
@@ -391,28 +391,28 @@ pub fn ServersPage() -> impl IntoView {
                                                 {status_label}
                                             </span>
                                         </div>
-                                        <p class="text-sm text-gray-400 font-mono">
+                                        <p class="text-sm text-gray-500 dark:text-gray-400 font-mono">
                                             {server.username.clone()}"@"{server.host.clone()}":"{server.port}
                                         </p>
-                                        <p class="text-xs text-gray-500 mt-0.5">
+                                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                                             "认证: "
                                             {if server.auth_type == "key" { "SSH 密钥" } else { "密码" }}
                                         </p>
                                     </div>
                                     <div class="flex items-center gap-2">
                                         <button
-                                            class="bg-gray-700 hover:bg-gray-600 text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                            class="btn-secondary text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                                             disabled=move || testing_id.get() == Some(id_dis.clone())
                                             on:click=move |_| on_test(id_test.clone())
                                         >
                                             {move || if testing_id.get() == Some(id_label.clone()) { "测试中…" } else { "测试连接" }}
                                         </button>
                                         <button
-                                            class="text-blue-400 hover:text-blue-300 text-sm px-3 py-1.5 transition-colors"
+                                            class="text-blue-500 dark:text-blue-400 hover:text-blue-400 dark:hover:text-blue-300 text-sm px-3 py-1.5 transition-colors"
                                             on:click=move |_| open_edit(server_edit.clone())
                                         >"编辑"</button>
                                         <button
-                                            class="text-red-400 hover:text-red-300 text-sm px-3 py-1.5 transition-colors"
+                                            class="text-red-500 dark:text-red-400 hover:text-red-400 dark:hover:text-red-300 text-sm px-3 py-1.5 transition-colors"
                                             on:click=move |_| on_delete(id_delete.clone())
                                         >"删除"</button>
                                     </div>
@@ -437,17 +437,17 @@ pub fn ServersPage() -> impl IntoView {
                         } else {
                             let total2 = total;
                             view! {
-                                <div class="flex items-center justify-between mt-4 text-sm text-gray-400">
+                                <div class="flex items-center justify-between mt-4 text-sm text-gray-500 dark:text-gray-400">
                                     <button
-                                        class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        class="btn-page px-3 py-1.5 rounded-lg transition-colors"
                                         disabled=move || page.get() <= 1
                                         on:click=move |_| page.update(|p| *p = p.saturating_sub(1))
                                     >"← 上一页"</button>
-                                    <span class="text-gray-500">
+                                    <span class="text-gray-400 dark:text-gray-500">
                                         "第 " {move || page.get()} " / " {total2} " 页"
                                     </span>
                                     <button
-                                        class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        class="btn-page px-3 py-1.5 rounded-lg transition-colors"
                                         disabled=move || page.get() >= total2
                                         on:click=move |_| page.update(|p| if *p < total2 { *p += 1 })
                                     >"下一页 →"</button>
@@ -469,9 +469,9 @@ pub fn ServersPage() -> impl IntoView {
                     // 名称 + 端口
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">"名称"</label>
+                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"名称"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                                 placeholder="生产服务器"
                                 prop:value=name
                                 on:input=move |ev| name.set(event_target_value(&ev))
@@ -479,9 +479,9 @@ pub fn ServersPage() -> impl IntoView {
                             />
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">"端口"</label>
+                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"端口"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                                 type="number" placeholder="22"
                                 prop:value=port
                                 on:input=move |ev| port.set(event_target_value(&ev))
@@ -491,9 +491,9 @@ pub fn ServersPage() -> impl IntoView {
 
                     // 主机地址
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"主机地址"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"主机地址"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                             placeholder="192.168.1.100"
                             prop:value=host
                             on:input=move |ev| host.set(event_target_value(&ev))
@@ -503,9 +503,9 @@ pub fn ServersPage() -> impl IntoView {
 
                     // 用户名
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"用户名"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"用户名"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                             placeholder="root"
                             prop:value=username
                             on:input=move |ev| username.set(event_target_value(&ev))
@@ -515,7 +515,7 @@ pub fn ServersPage() -> impl IntoView {
 
                     // 认证方式
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"认证方式"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"认证方式"</label>
                         <Select
                             options=auth_type_options()
                             value=auth_type.read_only()
@@ -534,7 +534,7 @@ pub fn ServersPage() -> impl IntoView {
                             .collect();
                         view! {
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">"选择密钥"</label>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"选择密钥"</label>
                                 <Select
                                     options=key_options
                                     value=ssh_key_id_str.read_only()
@@ -551,9 +551,9 @@ pub fn ServersPage() -> impl IntoView {
                         };
                         view! {
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">"密码"</label>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"密码"</label>
                                 <input
-                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                    class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                                     type="password"
                                     placeholder=placeholder
                                     prop:value=password
@@ -612,7 +612,7 @@ pub fn ServersPage() -> impl IntoView {
                             {move || if modal_testing.get() { "测试中…" } else { "测试连接" }}
                         </button>
                         <button type="button"
-                            class="px-4 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                            class="px-4 btn-secondary py-2 rounded-lg text-sm transition-colors"
                             on:click=move |_| { show_modal.set(false); reset_form(); }
                         >"取消"</button>
                     </div>

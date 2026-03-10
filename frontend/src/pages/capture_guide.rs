@@ -642,38 +642,38 @@ pub fn CaptureGuidePage() -> impl IntoView {
             <div class="max-w-5xl mx-auto">
                 // 页眉
                 <div class="flex items-center gap-4 mb-6">
-                    <a href="/captures" class="text-gray-400 hover:text-white transition-colors text-sm">
+                    <a href="/captures" class="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white transition-colors text-sm">
                         "← 抓包任务"
                     </a>
                     <div>
                         <h1 class="text-2xl font-bold">"📖 Wireshark 过滤器使用指南"</h1>
-                        <p class="text-sm text-gray-400 mt-1">"在分析页面的过滤器输入框中使用以下表达式，按 Enter 或点击「应用过滤」"</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">"在分析页面的过滤器输入框中使用以下表达式，按 Enter 或点击「应用过滤」"</p>
                     </div>
                 </div>
 
                 // 快速参考卡片
                 <div class="grid grid-cols-3 gap-3 mb-6">
-                    <div class="bg-blue-900/30 border border-blue-700/50 rounded-xl p-4">
-                        <div class="text-xs text-blue-400 font-semibold mb-2 uppercase tracking-wide">"运算符"</div>
+                    <div class="bg-blue-50 border border-blue-200 dark:bg-blue-900/30 dark:border-blue-700/50 rounded-xl p-4">
+                        <div class="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-2 uppercase tracking-wide">"运算符"</div>
                         <div class="space-y-1 font-mono text-xs">
-                            <div><span class="text-yellow-300">"and"</span><span class="text-gray-400">" / "</span><span class="text-yellow-300">"&&"</span><span class="text-gray-500">"  逻辑与"</span></div>
-                            <div><span class="text-yellow-300">"or"</span><span class="text-gray-400">" / "</span><span class="text-yellow-300">"||"</span><span class="text-gray-500">"   逻辑或"</span></div>
-                            <div><span class="text-yellow-300">"not"</span><span class="text-gray-400">" / "</span><span class="text-yellow-300">"!"</span><span class="text-gray-500">"   取反"</span></div>
+                            <div><span class="text-yellow-600 dark:text-yellow-300">"and"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"&&"</span><span class="text-gray-500">"  逻辑与"</span></div>
+                            <div><span class="text-yellow-600 dark:text-yellow-300">"or"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"||"</span><span class="text-gray-500">"   逻辑或"</span></div>
+                            <div><span class="text-yellow-600 dark:text-yellow-300">"not"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"!"</span><span class="text-gray-500">"   取反"</span></div>
                         </div>
                     </div>
-                    <div class="bg-green-900/30 border border-green-700/50 rounded-xl p-4">
-                        <div class="text-xs text-green-400 font-semibold mb-2 uppercase tracking-wide">"比较符"</div>
+                    <div class="bg-green-50 border border-green-200 dark:bg-green-900/30 dark:border-green-700/50 rounded-xl p-4">
+                        <div class="text-xs text-green-600 dark:text-green-400 font-semibold mb-2 uppercase tracking-wide">"比较符"</div>
                         <div class="space-y-1 font-mono text-xs">
-                            <div><span class="text-yellow-300">"=="</span><span class="text-gray-500">"  等于"</span></div>
-                            <div><span class="text-yellow-300">"!="</span><span class="text-gray-500">"  不等于"</span></div>
-                            <div><span class="text-yellow-300">">"</span><span class="text-gray-400">" / "</span><span class="text-yellow-300">"<"</span><span class="text-gray-400">" / "</span><span class="text-yellow-300">">="</span><span class="text-gray-400">" / "</span><span class="text-yellow-300">"<="</span></div>
+                            <div><span class="text-yellow-600 dark:text-yellow-300">"=="</span><span class="text-gray-500">"  等于"</span></div>
+                            <div><span class="text-yellow-600 dark:text-yellow-300">"!="</span><span class="text-gray-500">"  不等于"</span></div>
+                            <div><span class="text-yellow-600 dark:text-yellow-300">">"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"<"</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">">="</span><span class="text-gray-400">" / "</span><span class="text-yellow-600 dark:text-yellow-300">"<="</span></div>
                         </div>
                     </div>
-                    <div class="bg-purple-900/30 border border-purple-700/50 rounded-xl p-4">
-                        <div class="text-xs text-purple-400 font-semibold mb-2 uppercase tracking-wide">"字符串"</div>
+                    <div class="bg-purple-50 border border-purple-200 dark:bg-purple-900/30 dark:border-purple-700/50 rounded-xl p-4">
+                        <div class="text-xs text-purple-600 dark:text-purple-400 font-semibold mb-2 uppercase tracking-wide">"字符串"</div>
                         <div class="space-y-1 font-mono text-xs">
-                            <div><span class="text-yellow-300">"contains"</span><span class="text-gray-500">" 包含"</span></div>
-                            <div><span class="text-yellow-300">"matches"</span><span class="text-gray-500">"  正则匹配"</span></div>
+                            <div><span class="text-yellow-600 dark:text-yellow-300">"contains"</span><span class="text-gray-500">" 包含"</span></div>
+                            <div><span class="text-yellow-600 dark:text-yellow-300">"matches"</span><span class="text-gray-500">"  正则匹配"</span></div>
                             <div><span class="text-gray-500">"字符串用双引号括起"</span></div>
                         </div>
                     </div>
@@ -682,7 +682,7 @@ pub fn CaptureGuidePage() -> impl IntoView {
                 // 搜索框
                 <div class="mb-6">
                     <input
-                        class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-blue-500 placeholder-gray-500"
+                        class="w-full input rounded-lg px-4 py-2.5 text-sm font-mono text-gray-900 dark:text-white focus:outline-none"
                         placeholder="搜索过滤器... 例如: tcp, http, port"
                         on:input=move |ev| search.set(event_target_value(&ev))
                     />
@@ -704,33 +704,33 @@ pub fn CaptureGuidePage() -> impl IntoView {
                                 if filtered.is_empty() { return None; }
 
                                 Some(view! {
-                                    <div class="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
+                                    <div class="card rounded-xl overflow-hidden">
                                         // 章节标题
-                                        <div class="px-5 py-3 bg-gray-800 border-b border-gray-700 flex items-center gap-2">
+                                        <div class="px-5 py-3 table-head flex items-center gap-2">
                                             <span class="text-lg">{section.icon}</span>
-                                            <span class="font-semibold text-white">{section.title}</span>
-                                            <span class="ml-auto text-xs text-gray-500 bg-gray-700 rounded-full px-2 py-0.5">
+                                            <span class="font-semibold text-gray-800 dark:text-white">{section.title}</span>
+                                            <span class="ml-auto text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-0.5">
                                                 {filtered.len()}" 条"
                                             </span>
                                         </div>
                                         // 条目列表
-                                        <div class="divide-y divide-gray-800">
+                                        <div class="divide-y divide-gray-100 dark:divide-gray-800">
                                             {
                                                 filtered.into_iter().map(|ex| {
                                                     let filter_str = ex.filter.to_string();
                                                     let filter_for_copy = filter_str.clone();
                                                     view! {
-                                                        <div class="flex items-start gap-4 px-5 py-3 hover:bg-gray-800/50 group transition-colors">
+                                                        <div class="flex items-start gap-4 px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 group transition-colors">
                                                             // 过滤器代码
                                                             <div class="flex-1 min-w-0">
-                                                                <code class="text-sm font-mono text-green-400 break-all leading-relaxed">
+                                                                <code class="text-sm font-mono text-green-700 dark:text-green-400 break-all leading-relaxed">
                                                                     {filter_str}
                                                                 </code>
-                                                                <p class="text-xs text-gray-400 mt-0.5">{ex.desc}</p>
+                                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ex.desc}</p>
                                                             </div>
                                                             // 复制按钮
                                                             <button
-                                                                class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-500 hover:text-blue-400 bg-gray-700 hover:bg-gray-600 rounded px-2 py-1"
+                                                                class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-xs btn-secondary rounded px-2 py-1"
                                                                 on:click=move |_| {
                                                                     let val = filter_for_copy.clone();
                                                                     if let Some(window) = web_sys::window() {
@@ -753,9 +753,9 @@ pub fn CaptureGuidePage() -> impl IntoView {
                 </div>
 
                 // 底部提示
-                <div class="mt-8 p-4 bg-yellow-900/20 border border-yellow-700/40 rounded-xl text-sm text-yellow-300/80">
+                <div class="mt-8 p-4 bg-yellow-50 border border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-700/40 rounded-xl text-sm text-yellow-800 dark:text-yellow-300/80">
                     <p class="font-semibold mb-1">"💡 提示"</p>
-                    <ul class="space-y-1 text-xs list-disc list-inside text-yellow-200/60">
+                    <ul class="space-y-1 text-xs list-disc list-inside text-yellow-700 dark:text-yellow-200/60">
                         <li>"过滤器区分大小写，协议名全部小写（如 tcp 而非 TCP）"</li>
                         <li>"使用括号 () 改变运算优先级，and 优先级高于 or"</li>
                         <li>"字符串值需要用双引号括起来，如 http.host == \"example.com\""</li>

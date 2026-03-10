@@ -60,20 +60,20 @@ pub fn Select(
         let base = "w-full flex items-center justify-between border rounded-lg px-3 py-2 text-sm focus:outline-none transition-colors";
         if is_disabled() {
             format!(
-                "{} bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed",
+                "{} bg-gray-100 border-gray-200 text-gray-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-500 cursor-not-allowed",
                 base
             )
         } else {
-            format!("{} bg-gray-700 border-gray-600 text-white hover:border-gray-500 focus:border-blue-500 cursor-pointer", base)
+            format!("{} bg-white border-gray-300 text-gray-900 hover:border-gray-400 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:hover:border-gray-500 cursor-pointer", base)
         }
     };
 
     // 文字颜色
     let label_class = move || {
         if is_disabled() || value.get().is_empty() {
-            "text-gray-400"
+            "text-gray-400 dark:text-gray-400"
         } else {
-            "text-white"
+            "text-gray-900 dark:text-white"
         }
     };
 
@@ -94,7 +94,7 @@ pub fn Select(
                 <span class=label_class>{move || selected_label()}</span>
                 <span class=move || {
                     let rotate = if open.get() { "rotate-180" } else { "" };
-                    let color  = if is_disabled() { "text-gray-600" } else { "text-gray-400" };
+                    let color  = if is_disabled() { "text-gray-300 dark:text-gray-600" } else { "text-gray-500 dark:text-gray-400" };
                     format!("{} {} transition-transform duration-150 inline-block ml-2 shrink-0", color, rotate)
                 }>"▾"</span>
             </button>
@@ -106,7 +106,7 @@ pub fn Select(
 
             // ── 下拉面板 ────────────────────────────────────────────────
             <Show when=move || open.get()>
-                <div class="absolute z-20 mt-1 w-full bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden">
+                <div class="absolute z-20 mt-1 w-full bg-white border border-gray-200 dark:bg-gray-800 dark:border-gray-600 rounded-lg shadow-xl overflow-hidden">
 
                     // placeholder 行
                     {placeholder.with_value(|p| p.clone()).map(|ph| {
@@ -118,7 +118,7 @@ pub fn Select(
                                     if value.get().is_empty() {
                                         format!("{} bg-blue-600 text-white", base)
                                     } else {
-                                        format!("{} text-gray-500 hover:bg-gray-700", base)
+                                        format!("{} text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700", base)
                                     }
                                 }
                                 on:click=move |_| {
@@ -149,7 +149,7 @@ pub fn Select(
                                         if value.get() == val_check {
                                             format!("{} bg-blue-600 text-white", base)
                                         } else {
-                                            format!("{} text-gray-200 hover:bg-gray-700", base)
+                                            format!("{} text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700", base)
                                         }
                                     }
                                     on:click=move |_| {

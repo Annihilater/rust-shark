@@ -280,45 +280,45 @@ pub fn CaptureProfilesPage() -> impl IntoView {
                                     });
 
                                     view! {
-                                        <div class="bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl p-4 transition-all flex flex-col gap-3">
+                                        <div class="card hover:border-gray-300 dark:hover:border-gray-600 rounded-xl p-4 transition-all flex flex-col gap-3">
                                             // 标题 + 删除
                                             <div class="flex items-start justify-between gap-2">
                                                 <div class="min-w-0">
-                                                    <h3 class="font-semibold text-gray-100 truncate">{profile.name.clone()}</h3>
+                                                    <h3 class="font-semibold truncate">{profile.name.clone()}</h3>
                                                     <p class="text-xs text-gray-500 mt-0.5 truncate" title=server_name.clone()>{server_name.clone()}</p>
                                                 </div>
                                                 <button
-                                                    class="text-red-500/60 hover:text-red-400 transition-colors text-sm shrink-0 px-1 py-0.5"
+                                                    class="text-red-400 hover:text-red-500 transition-colors text-sm shrink-0 px-1 py-0.5"
                                                     on:click=move |_| on_delete(pid_del.clone())
                                                 >"✕"</button>
                                             </div>
 
                                             // 配置标签
                                             <div class="flex flex-wrap gap-1.5">
-                                                <span class="text-xs bg-blue-900/40 border border-blue-800/50 text-blue-300 px-2 py-0.5 rounded font-mono shrink-0">
+                                                <span class="text-xs bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800/50 dark:text-blue-300 px-2 py-0.5 rounded font-mono shrink-0">
                                                     {profile.interface.clone()}
                                                 </span>
                                                 {profile.filter.clone().map(|f| {
                                                     let ft = f.clone();
                                                     view! {
-                                                        <span class="text-xs bg-gray-700/60 border border-gray-600 text-gray-300 px-2 py-0.5 rounded font-mono truncate max-w-[180px]" title=ft>
+                                                        <span class="text-xs badge-gray px-2 py-0.5 rounded font-mono truncate max-w-[180px]" title=ft>
                                                             {f}
                                                         </span>
                                                     }
                                                 })}
                                                 {dur_tag.map(|d| view! {
-                                                    <span class="text-xs bg-gray-700/40 border border-gray-700 text-gray-400 px-2 py-0.5 rounded">{d}</span>
+                                                    <span class="text-xs badge-gray px-2 py-0.5 rounded">{d}</span>
                                                 })}
                                                 {pkt_tag.map(|p| view! {
-                                                    <span class="text-xs bg-gray-700/40 border border-gray-700 text-gray-400 px-2 py-0.5 rounded">{p}</span>
+                                                    <span class="text-xs badge-gray px-2 py-0.5 rounded">{p}</span>
                                                 })}
                                             </div>
 
                                             // 底部：时间 + 执行按钮
                                             <div class="flex items-center justify-between mt-auto">
-                                                <span class="text-xs text-gray-600 font-mono">{profile.created_at.clone()}</span>
+                                                <span class="text-xs text-gray-400 font-mono">{profile.created_at.clone()}</span>
                                                 <button
-                                                    class="text-sm bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                                                    class="text-sm bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
                                                     disabled=move || running_id.get() == Some(pid_run.clone())
                                                     on:click=move |_| on_run(profile_run.clone())
                                                 >
@@ -348,9 +348,9 @@ pub fn CaptureProfilesPage() -> impl IntoView {
             >
                 <form on:submit=on_create class="space-y-3">
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"配置名称"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"配置名称"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                             placeholder="例：生产服务器-全量抓包"
                             prop:value=name
                             on:input=move |ev| name.set(event_target_value(&ev))
@@ -359,7 +359,7 @@ pub fn CaptureProfilesPage() -> impl IntoView {
                     </div>
 
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"选择服务器"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"选择服务器"</label>
                         <Select
                             options=Signal::derive(move || {
                                 servers.get().into_iter()
@@ -373,7 +373,7 @@ pub fn CaptureProfilesPage() -> impl IntoView {
                     </div>
 
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">
                             "网卡"
                             {move || loading_ifaces.get().then(|| view! {
                                 <span class="text-gray-500 ml-1">"加载中…"</span>
@@ -393,9 +393,9 @@ pub fn CaptureProfilesPage() -> impl IntoView {
                     </div>
 
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"BPF 过滤器（可选）"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"BPF 过滤器（可选）"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-3 py-2 text-sm font-mono text-gray-900 dark:text-white"
                             placeholder="tcp and host 1.2.3.4"
                             prop:value=filter
                             on:input=move |ev| filter.set(event_target_value(&ev))
@@ -404,18 +404,18 @@ pub fn CaptureProfilesPage() -> impl IntoView {
 
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">"时长（秒，0=不限）"</label>
+                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"时长（秒，0=不限）"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                                 type="number" min="0" placeholder="60"
                                 prop:value=duration
                                 on:input=move |ev| duration.set(event_target_value(&ev))
                             />
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">"包数限制（0=不限）"</label>
+                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"包数限制（0=不限）"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                                 type="number" min="0" placeholder="1000"
                                 prop:value=packet_limit
                                 on:input=move |ev| packet_limit.set(event_target_value(&ev))
@@ -424,7 +424,7 @@ pub fn CaptureProfilesPage() -> impl IntoView {
                     </div>
 
                     {move || error.get().map(|e| view! {
-                        <div class="bg-red-900/50 border border-red-700 text-red-300 px-3 py-2 rounded-lg text-sm">{e}</div>
+                        <div class="notice-error px-3 py-2 rounded-lg text-sm">{e}</div>
                     })}
 
                     <div class="flex gap-3 pt-1">
@@ -432,7 +432,7 @@ pub fn CaptureProfilesPage() -> impl IntoView {
                             class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
                         >"保存配置"</button>
                         <button type="button"
-                            class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                            class="flex-1 btn-secondary py-2 rounded-lg text-sm transition-colors"
                             on:click=move |_| show_modal.set(false)
                         >"取消"</button>
                     </div>

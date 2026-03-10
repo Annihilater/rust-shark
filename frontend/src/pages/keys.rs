@@ -191,25 +191,25 @@ pub fn KeysPage() -> impl IntoView {
                         let on_del       = on_delete;
                         let key_for_view = key.clone();
                         view! {
-                            <div class="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-start justify-between gap-4">
+                            <div class="card rounded-xl p-4 flex items-start justify-between gap-4">
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-2 mb-1">
                                         <span class="text-yellow-400">"🔑"</span>
                                         <span class="font-medium">{key.name.clone()}</span>
-                                        <span class="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full font-mono">
+                                        <span class="text-xs badge-gray px-2 py-0.5 rounded-full font-mono">
                                             {key.key_type.clone()}
                                         </span>
                                     </div>
                                     <p class="text-xs text-gray-500 font-mono">"指纹: "{key.fingerprint.clone()}</p>
-                                    <p class="text-xs text-gray-600 mt-0.5">"添加时间: "{key.created_at.clone()}</p>
+                                    <p class="text-xs text-gray-400 dark:text-gray-600 mt-0.5">"添加时间: "{key.created_at.clone()}</p>
                                 </div>
                                 <div class="flex items-center gap-3 shrink-0">
                                     <button
-                                        class="text-blue-400 hover:text-blue-300 text-sm"
+                                        class="text-blue-500 dark:text-blue-400 hover:text-blue-400 dark:hover:text-blue-300 text-sm"
                                         on:click=move |_| view_key.set(Some(key_for_view.clone()))
                                     >"查看"</button>
                                     <button
-                                        class="text-red-400 hover:text-red-300 text-sm"
+                                        class="text-red-500 dark:text-red-400 hover:text-red-400 dark:hover:text-red-300 text-sm"
                                         on:click=move |_| on_del(id.clone())
                                     >"删除"</button>
                                 </div>
@@ -233,17 +233,17 @@ pub fn KeysPage() -> impl IntoView {
                         } else {
                             let total2 = total;
                             view! {
-                                <div class="flex items-center justify-between mt-4 text-sm text-gray-400">
+                                <div class="flex items-center justify-between mt-4 text-sm text-gray-500 dark:text-gray-400">
                                     <button
-                                        class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        class="btn-page px-3 py-1.5 rounded-lg transition-colors"
                                         disabled=move || page.get() <= 1
                                         on:click=move |_| page.update(|p| *p = p.saturating_sub(1))
                                     >"← 上一页"</button>
-                                    <span class="text-gray-500">
+                                    <span class="text-gray-400 dark:text-gray-500">
                                         "第 " {move || page.get()} " / " {total2} " 页"
                                     </span>
                                     <button
-                                        class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        class="btn-page px-3 py-1.5 rounded-lg transition-colors"
                                         disabled=move || page.get() >= total2
                                         on:click=move |_| page.update(|p| if *p < total2 { *p += 1 })
                                     >"下一页 →"</button>
@@ -290,9 +290,9 @@ pub fn KeysPage() -> impl IntoView {
                 {move || (active_tab.get() == AddTab::Paste).then(|| view! {
                     <form on:submit=on_create class="space-y-4">
                         <div>
-                            <label class="block text-sm text-gray-400 mb-1">"密钥名称"</label>
+                            <label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">"密钥名称"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                                class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                                 placeholder="生产服务器密钥"
                                 prop:value=key_name
                                 on:input=move |ev| key_name.set(event_target_value(&ev))
@@ -300,9 +300,9 @@ pub fn KeysPage() -> impl IntoView {
                             />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-400 mb-1">"私钥内容（OpenSSH PEM 格式）"</label>
+                            <label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">"私钥内容（OpenSSH PEM 格式）"</label>
                             <textarea
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500 h-36 resize-none"
+                                class="input w-full rounded-lg px-3 py-2 font-mono text-xs text-gray-900 dark:text-white h-36 resize-none"
                                 placeholder="-----BEGIN OPENSSH PRIVATE KEY-----\n..."
                                 prop:value=private_key
                                 on:input=move |ev| private_key.set(event_target_value(&ev))
@@ -310,14 +310,14 @@ pub fn KeysPage() -> impl IntoView {
                             />
                         </div>
                         {move || error.get().map(|e| view! {
-                            <div class="bg-red-900/50 border border-red-700 text-red-300 px-3 py-2 rounded-lg text-sm">{e}</div>
+                            <div class="notice-error px-3 py-2 rounded-lg text-sm">{e}</div>
                         })}
                         <div class="flex gap-3 pt-1">
                             <button type="submit"
                                 class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
                             >"添加"</button>
                             <button type="button"
-                                class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                                class="flex-1 btn-secondary py-2 rounded-lg text-sm transition-colors"
                                 on:click=move |_| show_modal.set(false)
                             >"取消"</button>
                         </div>
@@ -328,9 +328,9 @@ pub fn KeysPage() -> impl IntoView {
                 {move || (active_tab.get() == AddTab::Generate).then(|| view! {
                     <form on:submit=on_generate class="space-y-4">
                         <div>
-                            <label class="block text-sm text-gray-400 mb-1">"密钥名称"</label>
+                            <label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">"密钥名称"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                                class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                                 placeholder="我的新密钥"
                                 prop:value=gen_name
                                 on:input=move |ev| gen_name.set(event_target_value(&ev))
@@ -338,7 +338,7 @@ pub fn KeysPage() -> impl IntoView {
                             />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-400 mb-1">"密钥类型"</label>
+                            <label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">"密钥类型"</label>
                             <Select
                                 options=key_type_options()
                                 value=gen_type.read_only()
@@ -346,27 +346,27 @@ pub fn KeysPage() -> impl IntoView {
                             />
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-400 mb-1">"注释（可选）"</label>
+                            <label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">"注释（可选）"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                                class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                                 placeholder="user@hostname"
                                 prop:value=gen_comment
                                 on:input=move |ev| gen_comment.set(event_target_value(&ev))
                             />
                         </div>
-                        <div class="bg-blue-900/30 border border-blue-700/50 text-blue-300/80 px-3 py-2 rounded-lg text-xs flex items-start gap-2">
+                        <div class="bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700/50 dark:text-blue-300/80 px-3 py-2 rounded-lg text-xs flex items-start gap-2">
                             <span class="mt-0.5 shrink-0">"🔒"</span>
                             <span>"私钥将使用 AES-256-GCM 加密保存在数据库中，SSH 连接时从内存解密使用，不会明文传输"</span>
                         </div>
                         {move || error.get().map(|e| view! {
-                            <div class="bg-red-900/50 border border-red-700 text-red-300 px-3 py-2 rounded-lg text-sm">{e}</div>
+                            <div class="notice-error px-3 py-2 rounded-lg text-sm">{e}</div>
                         })}
                         <div class="flex gap-3 pt-1">
                             <button type="submit"
                                 class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
                             >"生成并保存"</button>
                             <button type="button"
-                                class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                                class="flex-1 btn-secondary py-2 rounded-lg text-sm transition-colors"
                                 on:click=move |_| show_modal.set(false)
                             >"取消"</button>
                         </div>
@@ -409,18 +409,18 @@ pub fn KeysPage() -> impl IntoView {
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-xs text-gray-500 mb-1">"名称"</label>
-                                    <p class="text-white font-medium text-sm">{k.name.clone()}</p>
+                                    <p class="text-gray-900 dark:text-white font-medium text-sm">{k.name.clone()}</p>
                                 </div>
                                 <div>
                                     <label class="block text-xs text-gray-500 mb-1">"类型"</label>
-                                    <span class="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded font-mono">{k.key_type.clone()}</span>
+                                    <span class="text-xs badge-gray px-2 py-1 rounded font-mono">{k.key_type.clone()}</span>
                                 </div>
                             </div>
 
                             // 指纹
                             <div>
                                 <label class="block text-xs text-gray-500 mb-1">"SHA256 指纹"</label>
-                                <p class="text-xs font-mono text-green-400 break-all bg-gray-900 rounded px-2 py-1.5">{k.fingerprint.clone()}</p>
+                                <p class="text-xs font-mono text-green-600 dark:text-green-400 break-all code-block rounded px-2 py-1.5">{k.fingerprint.clone()}</p>
                             </div>
 
                             // 公钥（带复制按钮）
@@ -431,9 +431,9 @@ pub fn KeysPage() -> impl IntoView {
                                         type="button"
                                         class=move || {
                                             if pubkey_copied.get() {
-                                                "text-xs text-green-400 flex items-center gap-1"
+                                                "text-xs text-green-600 dark:text-green-400 flex items-center gap-1"
                                             } else {
-                                                "text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1 transition-colors"
+                                                "text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1 transition-colors"
                                             }
                                         }
                                         on:click={
@@ -445,7 +445,7 @@ pub fn KeysPage() -> impl IntoView {
                                     </button>
                                 </div>
                                 <textarea
-                                    class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs font-mono text-gray-300 h-16 resize-none focus:outline-none"
+                                    class="code-block w-full rounded px-2 py-1.5 text-xs font-mono h-16 resize-none focus:outline-none"
                                     readonly
                                     prop:value=k.public_key.clone()
                                 />
@@ -459,9 +459,9 @@ pub fn KeysPage() -> impl IntoView {
                                         type="button"
                                         class=move || {
                                             if cmd_copied.get() {
-                                                "text-xs text-green-400 flex items-center gap-1"
+                                                "text-xs text-green-600 dark:text-green-400 flex items-center gap-1"
                                             } else {
-                                                "text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1 transition-colors"
+                                                "text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1 transition-colors"
                                             }
                                         }
                                         on:click={
@@ -472,26 +472,26 @@ pub fn KeysPage() -> impl IntoView {
                                         {move || if cmd_copied.get() { "✓ 已复制" } else { "复制命令" }}
                                     </button>
                                 </div>
-                                <div class="bg-gray-900 border border-gray-700 rounded px-3 py-2 font-mono text-xs text-yellow-300 break-all select-all">
+                                <div class="code-block rounded px-3 py-2 font-mono text-xs text-yellow-700 dark:text-yellow-300 break-all select-all">
                                     {install_cmd.clone()}
                                 </div>
-                                <p class="text-xs text-gray-600 mt-1">"在目标服务器上执行此命令，将公钥追加到 authorized_keys"</p>
+                                <p class="text-xs text-gray-400 mt-1">"在目标服务器上执行此命令，将公钥追加到 authorized_keys"</p>
                             </div>
 
                             // 添加时间
                             <div>
                                 <label class="block text-xs text-gray-500 mb-1">"添加时间"</label>
-                                <p class="text-xs text-gray-400">{k.created_at.clone()}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{k.created_at.clone()}</p>
                             </div>
 
                             // 私钥安全提示
-                            <div class="bg-gray-900/60 border border-gray-700 text-gray-400 px-3 py-2 rounded-lg text-xs flex items-center gap-2">
+                            <div class="code-block text-gray-500 px-3 py-2 rounded-lg text-xs flex items-center gap-2">
                                 <span>"🔒"</span>
                                 <span>"私钥已加密存储于数据库，SSH 连接时在内存中解密使用"</span>
                             </div>
 
                             <button
-                                class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                                class="w-full btn-secondary py-2 rounded-lg text-sm transition-colors"
                                 on:click=move |_| view_key.set(None)
                             >"关闭"</button>
                         </div>

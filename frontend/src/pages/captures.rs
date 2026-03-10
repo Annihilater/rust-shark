@@ -481,11 +481,11 @@ pub fn CapturesPage() -> impl IntoView {
                             let can_retry    = is_done || is_failed || is_cancelled;
 
                             let status_class = match task.status.as_str() {
-                                "done"      => "text-green-400",
-                                "running"   => "text-blue-400",
-                                "failed"    => "text-red-400",
-                                "cancelled" => "text-gray-400",
-                                _           => "text-yellow-400",
+                                "done"      => "text-green-600 dark:text-green-400",
+                                "running"   => "text-blue-600 dark:text-blue-400",
+                                "failed"    => "text-red-600 dark:text-red-400",
+                                "cancelled" => "text-gray-500 dark:text-gray-400",
+                                _           => "text-yellow-600 dark:text-yellow-400",
                             };
                             let status_label = match task.status.as_str() {
                                 "done"      => "✓ 完成",
@@ -512,13 +512,13 @@ pub fn CapturesPage() -> impl IntoView {
                                 // 点击整个卡片展开日志
                                 <div
                                     class=move || format!(
-                                        "bg-gray-800 border rounded-xl p-3 transition-all cursor-pointer select-none {}",
+                                        "card rounded-xl p-3 transition-all cursor-pointer select-none {}",
                                         if expanded_log_id.get() == Some(id_cls.clone()) {
-                                            "border-blue-500/70 shadow-lg shadow-blue-900/20"
+                                            "border-blue-500/70 shadow-lg shadow-blue-900/20 dark:shadow-blue-900/20"
                                         } else if is_running {
-                                            "border-blue-700/40 hover:border-blue-600/60"
+                                            "border-blue-300 dark:border-blue-700/40 hover:border-blue-400 dark:hover:border-blue-600/60"
                                         } else {
-                                            "border-gray-700 hover:border-gray-500"
+                                            "hover:border-gray-400 dark:hover:border-gray-500"
                                         }
                                     )
                                     on:click=move |ev| {
@@ -566,20 +566,20 @@ pub fn CapturesPage() -> impl IntoView {
                                         </span>
 
                                         // 接口
-                                        <span class="font-mono text-sm text-gray-200 shrink-0">{task.interface.clone()}</span>
+                                        <span class="font-mono text-sm text-gray-700 dark:text-gray-200 shrink-0">{task.interface.clone()}</span>
 
                                         // 配置标签
                                         {task.filter.clone().map(|f| {
                                             let ft = f.clone();
                                             view! {
-                                                <span class="text-xs bg-gray-700/80 border border-gray-600 px-2 py-0.5 rounded text-gray-300 font-mono truncate max-w-[180px]" title=ft>{f}</span>
+                                                <span class="text-xs badge-gray px-2 py-0.5 rounded font-mono truncate max-w-[180px]" title=ft>{f}</span>
                                             }
                                         })}
                                         {dur_tag.map(|d| view! {
-                                            <span class="text-xs bg-gray-700/50 border border-gray-700 px-1.5 py-0.5 rounded text-gray-400 shrink-0">{d}</span>
+                                            <span class="text-xs badge-gray px-1.5 py-0.5 rounded shrink-0">{d}</span>
                                         })}
                                         {pkt_tag.map(|p| view! {
-                                            <span class="text-xs bg-gray-700/50 border border-gray-700 px-1.5 py-0.5 rounded text-gray-400 shrink-0">{p}</span>
+                                            <span class="text-xs badge-gray px-1.5 py-0.5 rounded shrink-0">{p}</span>
                                         })}
 
                                         // 操作区（右对齐）
@@ -603,15 +603,15 @@ pub fn CapturesPage() -> impl IntoView {
                                                 view! {
                                                     <div class="flex gap-1.5">
                                                         <button
-                                                            class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2.5 py-1.5 rounded-lg transition-colors"
+                                                            class="text-xs btn-secondary px-2.5 py-1.5 rounded-lg transition-colors"
                                                             on:click=move |_| on_download(id_dl.clone())
                                                         >"⬇ 下载"</button>
                                                         <a
                                                             href=format!("/captures/{}", id_ana)
-                                                            class="text-xs bg-blue-700 hover:bg-blue-600 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                                                            class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1.5 rounded-lg transition-colors"
                                                         >"🔬 分析"</a>
                                                         <button
-                                                            class="text-xs bg-green-700/80 hover:bg-green-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                                                            class="text-xs bg-green-600/80 hover:bg-green-600 text-white px-2.5 py-1.5 rounded-lg transition-colors"
                                                             on:click=move |_| on_retry(task_r.clone())
                                                         >"↺"</button>
                                                     </div>
@@ -621,7 +621,7 @@ pub fn CapturesPage() -> impl IntoView {
                                                 let task_r = task_retry.clone();
                                                 view! {
                                                     <button
-                                                        class="text-xs bg-green-700/80 hover:bg-green-700 text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                                                        class="text-xs bg-green-600/80 hover:bg-green-600 text-white px-2.5 py-1.5 rounded-lg transition-colors"
                                                         on:click=move |_| on_retry(task_r.clone())
                                                     >"↺ 重试"</button>
                                                 }.into_any()
@@ -638,7 +638,7 @@ pub fn CapturesPage() -> impl IntoView {
                                     </div>
 
                                     // ── 第二行：时间 + 文件大小 ──────────────────
-                                    <div class="flex gap-3 mt-1.5 pl-5 text-xs text-gray-600 flex-wrap">
+                                    <div class="flex gap-3 mt-1.5 pl-5 text-xs text-gray-500 flex-wrap">
                                         <span>"创建 "{task.created_at.clone()}</span>
                                         {task.finished_at.clone().map(|t| view! {
                                             <span>"结束 "{t}</span>
@@ -651,7 +651,7 @@ pub fn CapturesPage() -> impl IntoView {
                                             let id_esc = task.id.clone();
                                             move || if expanded_log_id.get() == Some(id_esc.clone()) {
                                                 view! {
-                                                    <span class="text-gray-700 ml-auto">"ESC 关闭日志"</span>
+                                                    <span class="text-gray-400 dark:text-gray-700 ml-auto">"ESC 关闭日志"</span>
                                                 }.into_any()
                                             } else {
                                                 view! { <span/> }.into_any()
@@ -678,15 +678,15 @@ pub fn CapturesPage() -> impl IntoView {
                             } else {
                                 let total2 = total;
                                 view! {
-                                    <div class="flex items-center justify-between mt-4 text-sm text-gray-400">
+                                    <div class="flex items-center justify-between mt-4 text-sm text-gray-500 dark:text-gray-400">
                                         <button
-                                            class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                            class="btn-page px-3 py-1.5 rounded-lg transition-colors"
                                             disabled=move || page.get() <= 1
                                             on:click=move |_| page.update(|p| *p = p.saturating_sub(1))
                                         >"← 上一页"</button>
                                         <span class="text-gray-500">"第 " {move || page.get()} " / " {total2} " 页"</span>
                                         <button
-                                            class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                            class="btn-page px-3 py-1.5 rounded-lg transition-colors"
                                             disabled=move || page.get() >= total2
                                             on:click=move |_| page.update(|p| if *p < total2 { *p += 1 })
                                         >"下一页 →"</button>
@@ -706,11 +706,11 @@ pub fn CapturesPage() -> impl IntoView {
                             None => {
                                 // 没有展开时显示空状态提示
                                 view! {
-                                    <div class="flex flex-col items-center justify-center h-full text-gray-600 rounded-xl border border-dashed border-gray-700/50"
+                                    <div class="flex flex-col items-center justify-center h-full text-gray-500 rounded-xl border border-dashed border-gray-300 dark:border-gray-700/50"
                                          style="min-height: 300px;">
                                         <div class="text-4xl mb-3 opacity-30">"📋"</div>
                                         <p class="text-sm">"点击左侧任务查看日志"</p>
-                                        <p class="text-xs mt-1 text-gray-700">"ESC 可关闭日志"</p>
+                                        <p class="text-xs mt-1 text-gray-400 dark:text-gray-700">"ESC 可关闭日志"</p>
                                     </div>
                                 }.into_any()
                             }
@@ -738,22 +738,22 @@ pub fn CapturesPage() -> impl IntoView {
                                 let is_live = task_status == "running" || task_status == "pending";
 
                                 let (status_color, status_text) = match task_status.as_str() {
-                                    "running"   => ("text-blue-400",  "运行中"),
-                                    "pending"   => ("text-yellow-400","等待中"),
-                                    "done"      => ("text-green-400", "已完成"),
-                                    "failed"    => ("text-red-400",   "失败"),
-                                    "cancelled" => ("text-gray-400",  "已取消"),
-                                    _           => ("text-gray-400",  "未知"),
+                                    "running"   => ("text-blue-600 dark:text-blue-400",  "运行中"),
+                                    "pending"   => ("text-yellow-600 dark:text-yellow-400","等待中"),
+                                    "done"      => ("text-green-600 dark:text-green-400", "已完成"),
+                                    "failed"    => ("text-red-600 dark:text-red-400",   "失败"),
+                                    "cancelled" => ("text-gray-500 dark:text-gray-400",  "已取消"),
+                                    _           => ("text-gray-500 dark:text-gray-400",  "未知"),
                                 };
 
                                 let lid2 = lid.clone();
 
                                 view! {
-                                    <div class="flex flex-col bg-gray-900 border border-gray-700 rounded-xl overflow-hidden"
+                                    <div class="flex flex-col panel-dark rounded-xl overflow-hidden"
                                          style="height: calc(100vh - 120px); position: sticky; top: 0;">
 
                                         // 侧边栏标题栏
-                                        <div class="flex items-center gap-2 px-4 py-3 bg-gray-800 border-b border-gray-700 shrink-0 flex-wrap">
+                                        <div class="flex items-center gap-2 px-4 py-3 panel-head shrink-0 flex-wrap">
                                             {if is_live {
                                                 view! {
                                                     <span class="relative flex h-2 w-2 shrink-0">
@@ -763,7 +763,7 @@ pub fn CapturesPage() -> impl IntoView {
                                                 }.into_any()
                                             } else { view! { <span/> }.into_any() }}
                                             <span class=format!("text-xs font-semibold shrink-0 {}", status_color)>{status_text}</span>
-                                            <span class="font-mono text-sm text-gray-300 shrink-0">{task_iface.clone()}</span>
+                                            <span class="font-mono text-sm text-gray-700 dark:text-gray-300 shrink-0">{task_iface.clone()}</span>
                                             {task_filter.map(|f| {
                                                 let ft = f.clone();
                                                 view! {
@@ -771,12 +771,12 @@ pub fn CapturesPage() -> impl IntoView {
                                                 }
                                             })}
                                             {task_dur.map(|d| view! {
-                                                <span class="text-xs text-gray-600 shrink-0">{d}"s"</span>
+                                                <span class="text-xs text-gray-500 dark:text-gray-600 shrink-0">{d}"s"</span>
                                             })}
                                             <div class="ml-auto flex items-center gap-2 shrink-0">
-                                                <span class="text-xs text-gray-700 font-mono hidden sm:block">"ESC"</span>
+                                                <span class="text-xs text-gray-400 dark:text-gray-700 font-mono hidden sm:block">"ESC"</span>
                                                 <button
-                                                    class="text-gray-500 hover:text-white transition-colors text-lg leading-none"
+                                                    class="text-gray-500 hover:text-gray-700 dark:hover:text-white transition-colors text-lg leading-none"
                                                     on:click=move |_| expanded_log_id.set(None)
                                                 >"×"</button>
                                             </div>
@@ -784,17 +784,17 @@ pub fn CapturesPage() -> impl IntoView {
 
                                         // 日志区
                                         <div class="flex flex-col flex-1 overflow-hidden">
-                                            <div class="px-3 py-1.5 bg-gray-800/50 border-b border-gray-700/50 flex items-center gap-2 shrink-0">
-                                                <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">"执行日志"</span>
+                                            <div class="px-3 py-1.5 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-200/50 dark:border-gray-700/50 flex items-center gap-2 shrink-0">
+                                                <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">"执行日志"</span>
                                                 {if is_live {
                                                     view! {
-                                                        <span class="text-xs text-blue-400 animate-pulse">"● 实时"</span>
+                                                        <span class="text-xs text-blue-500 dark:text-blue-400 animate-pulse">"● 实时"</span>
                                                     }.into_any()
                                                 } else { view! { <span/> }.into_any() }}
                                             </div>
                                             <pre
                                                 id=format!("log-{}", lid2)
-                                                class="flex-1 overflow-auto p-4 text-xs font-mono text-green-300 leading-relaxed whitespace-pre-wrap break-words bg-transparent"
+                                                class="flex-1 overflow-auto p-4 text-xs font-mono text-green-700 dark:text-green-300 leading-relaxed whitespace-pre-wrap break-words bg-transparent"
                                                 style="scrollbar-width: thin; scrollbar-color: #374151 transparent; min-height: 0;"
                                             >
                                                 {log_content}
@@ -805,15 +805,15 @@ pub fn CapturesPage() -> impl IntoView {
                                         {if task_status == "running" && !pkts.is_empty() {
                                             let pkt_count = pkts.len();
                                             view! {
-                                                <div class="flex flex-col border-t border-gray-700/50 shrink-0" style="max-height: 220px;">
-                                                    <div class="px-3 py-1.5 bg-gray-800/50 flex items-center gap-2 shrink-0">
-                                                        <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">"实时捕获"</span>
-                                                        <span class="text-xs font-mono text-green-400 bg-green-900/40 px-1.5 rounded">{pkt_count}" 包"</span>
+                                                <div class="flex flex-col border-t border-gray-200 dark:border-gray-700/50 shrink-0" style="max-height: 220px;">
+                                                    <div class="px-3 py-1.5 bg-gray-50/50 dark:bg-gray-800/50 flex items-center gap-2 shrink-0">
+                                                        <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">"实时捕获"</span>
+                                                        <span class="text-xs font-mono text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-1.5 rounded">{pkt_count}" 包"</span>
                                                     </div>
                                                     <div class="overflow-auto">
                                                         <table class="w-full text-xs">
-                                                            <thead class="sticky top-0 bg-gray-800/90">
-                                                                <tr class="text-gray-500 border-b border-gray-700/50">
+                                                            <thead class="sticky top-0 panel-head">
+                                                                <tr class="text-gray-500 border-b border-gray-200 dark:border-gray-700/50">
                                                                     <th class="text-left px-3 py-1 w-10">"No."</th>
                                                                     <th class="text-left px-3 py-1">"源地址"</th>
                                                                     <th class="text-left px-3 py-1 w-16">"协议"</th>
@@ -823,21 +823,21 @@ pub fn CapturesPage() -> impl IntoView {
                                                             <tbody>
                                                                 {pkts.into_iter().rev().map(|p| {
                                                                     let pc = match p.protocol.as_str() {
-                                                                        "TCP"  => "text-blue-300",
-                                                                        "UDP"  => "text-green-300",
-                                                                        "HTTP" | "HTTPS" | "HTTP/2" => "text-orange-300",
-                                                                        "DNS"  => "text-purple-300",
-                                                                        "ICMP" | "ICMPv6" => "text-yellow-300",
-                                                                        "TLS" | "SSL" => "text-teal-300",
-                                                                        "ARP"  => "text-pink-300",
-                                                                        _ => "text-gray-300",
+                                                                        "TCP"  => "text-blue-600 dark:text-blue-300",
+                                                                        "UDP"  => "text-green-600 dark:text-green-300",
+                                                                        "HTTP" | "HTTPS" | "HTTP/2" => "text-orange-600 dark:text-orange-300",
+                                                                        "DNS"  => "text-purple-600 dark:text-purple-300",
+                                                                        "ICMP" | "ICMPv6" => "text-yellow-600 dark:text-yellow-300",
+                                                                        "TLS" | "SSL" => "text-teal-600 dark:text-teal-300",
+                                                                        "ARP"  => "text-pink-600 dark:text-pink-300",
+                                                                        _ => "text-gray-600 dark:text-gray-300",
                                                                     };
                                                                     view! {
-                                                                        <tr class="border-b border-gray-700/20 hover:bg-gray-800/50">
-                                                                            <td class="px-3 py-0.5 text-gray-600 tabular-nums">{p.number}</td>
-                                                                            <td class="px-3 py-0.5 font-mono text-gray-400 truncate max-w-0 w-32">{p.source}</td>
+                                                                        <tr class="border-b border-gray-100 dark:border-gray-700/20 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                                                            <td class="px-3 py-0.5 text-gray-500 tabular-nums">{p.number}</td>
+                                                                            <td class="px-3 py-0.5 font-mono text-gray-600 dark:text-gray-400 truncate max-w-0 w-32">{p.source}</td>
                                                                             <td class=format!("px-3 py-0.5 font-mono font-medium {}", pc)>{p.protocol}</td>
-                                                                            <td class="px-3 py-0.5 text-gray-400 truncate max-w-0">{p.info}</td>
+                                                                            <td class="px-3 py-0.5 text-gray-600 dark:text-gray-400 truncate max-w-0">{p.info}</td>
                                                                         </tr>
                                                                     }
                                                                 }).collect::<Vec<_>>()}
@@ -864,7 +864,7 @@ pub fn CapturesPage() -> impl IntoView {
                 <form on:submit=on_create class="space-y-3">
 
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"选择服务器"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"选择服务器"</label>
                         <Select
                             options=Signal::derive(move || {
                                 servers.get().into_iter()
@@ -878,7 +878,7 @@ pub fn CapturesPage() -> impl IntoView {
                     </div>
 
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">
                             "网卡"
                             {move || loading_ifaces.get().then(|| view! {
                                 <span class="text-gray-500 ml-1">"加载中…"</span>
@@ -910,10 +910,10 @@ pub fn CapturesPage() -> impl IntoView {
                         } else {
                             view! {
                                 <div>
-                                    <label class="block text-xs text-gray-400 mb-1">
+                                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">
                                         "监听端口过滤（可多选，空=不过滤）"
                                     </label>
-                                    <div class="bg-gray-700 border border-gray-600 rounded-lg p-2 max-h-32 overflow-y-auto">
+                                    <div class="input rounded-lg p-2 max-h-32 overflow-y-auto">
                                         <div class="flex flex-wrap gap-2">
                                             {ps.into_iter().map(|p| {
                                                 let p2 = p;
@@ -931,7 +931,7 @@ pub fn CapturesPage() -> impl IntoView {
                                                                 });
                                                             }
                                                         />
-                                                        <span class="text-xs font-mono text-gray-200">{p}</span>
+                                                        <span class="text-xs font-mono text-gray-700 dark:text-gray-200">{p}</span>
                                                     </label>
                                                 }
                                             }).collect::<Vec<_>>()}
@@ -943,9 +943,9 @@ pub fn CapturesPage() -> impl IntoView {
                     }}
 
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"BPF 过滤器（可选，与端口选择叠加）"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"BPF 过滤器（可选，与端口选择叠加）"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
+                            class="w-full input rounded-lg px-3 py-2 text-sm font-mono text-gray-900 dark:text-white focus:outline-none"
                             placeholder="tcp and host 1.2.3.4"
                             prop:value=filter
                             on:input=move |ev| filter.set(event_target_value(&ev))
@@ -954,18 +954,18 @@ pub fn CapturesPage() -> impl IntoView {
 
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">"时长（秒，0=不限）"</label>
+                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"时长（秒，0=不限）"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                class="w-full input rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none"
                                 type="number" min="0" placeholder="60"
                                 prop:value=duration
                                 on:input=move |ev| duration.set(event_target_value(&ev))
                             />
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">"包数限制（0=不限）"</label>
+                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"包数限制（0=不限）"</label>
                             <input
-                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                                class="w-full input rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none"
                                 type="number" min="0" placeholder="1000"
                                 prop:value=packet_limit
                                 on:input=move |ev| packet_limit.set(event_target_value(&ev))
@@ -974,9 +974,9 @@ pub fn CapturesPage() -> impl IntoView {
                     </div>
 
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"定时执行（空=立即）"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"定时执行（空=立即）"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            class="w-full input rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none"
                             type="datetime-local"
                             prop:value=scheduled_at
                             on:input=move |ev| scheduled_at.set(event_target_value(&ev))
@@ -984,7 +984,7 @@ pub fn CapturesPage() -> impl IntoView {
                     </div>
 
                     {move || error.get().map(|e| view! {
-                        <div class="bg-red-900/50 border border-red-700 text-red-300 px-3 py-2 rounded-lg text-sm">{e}</div>
+                        <div class="notice-error px-3 py-2 rounded-lg text-sm">{e}</div>
                     })}
 
                     <div class="flex gap-3 pt-1">
@@ -992,7 +992,7 @@ pub fn CapturesPage() -> impl IntoView {
                             class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm transition-colors"
                         >"开始抓包"</button>
                         <button type="button"
-                            class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors"
+                            class="flex-1 btn-secondary py-2 rounded-lg text-sm transition-colors"
                             on:click=move |_| show_modal.set(false)
                         >"取消"</button>
                     </div>

@@ -156,22 +156,22 @@ pub fn AdminPage() -> impl IntoView {
                 </div>
 
                 {move || error.get().map(|e| view! {
-                    <div class="bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm">{e}</div>
+                    <div class="notice-error px-4 py-2 rounded-lg text-sm">{e}</div>
                 })}
                 {move || success.get().map(|s| view! {
-                    <div class="bg-green-900/50 border border-green-700 text-green-300 px-4 py-2 rounded-lg text-sm">{s}</div>
+                    <div class="bg-green-50 border border-green-200 text-green-700 dark:bg-green-900/50 dark:border-green-700 dark:text-green-300 px-4 py-2 rounded-lg text-sm">{s}</div>
                 })}
 
                 // ── 用户表格 ──────────────────────────────────────
-                <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+                <div class="card rounded-xl overflow-hidden">
                     <table class="w-full text-sm">
-                        <thead class="bg-gray-700/50 border-b border-gray-700">
+                        <thead class="table-head">
                             <tr>
-                                <th class="text-left px-4 py-3 text-gray-400 font-medium">"姓名"</th>
-                                <th class="text-left px-4 py-3 text-gray-400 font-medium">"邮箱"</th>
-                                <th class="text-left px-4 py-3 text-gray-400 font-medium">"角色"</th>
-                                <th class="text-left px-4 py-3 text-gray-400 font-medium">"注册时间"</th>
-                                <th class="text-right px-4 py-3 text-gray-400 font-medium">"操作"</th>
+                                <th class="text-left px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">"姓名"</th>
+                                <th class="text-left px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">"邮箱"</th>
+                                <th class="text-left px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">"角色"</th>
+                                <th class="text-left px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">"注册时间"</th>
+                                <th class="text-right px-4 py-3 text-gray-500 dark:text-gray-400 font-medium">"操作"</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -181,29 +181,29 @@ pub fn AdminPage() -> impl IntoView {
                                 let current_id = auth.get().user_id.clone().unwrap_or_default();
                                 let is_self = user.id == current_id;
                                 view! {
-                                    <tr class="border-b border-gray-700/50 last:border-0 hover:bg-gray-700/30">
+                                    <tr class="table-row last:border-0">
                                         <td class="px-4 py-3 font-medium">{user.name.clone()}</td>
-                                        <td class="px-4 py-3 text-gray-400">{user.email.clone()}</td>
+                                        <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{user.email.clone()}</td>
                                         <td class="px-4 py-3">
-                                            <span class=if user.role == "admin" { "text-yellow-400 text-xs" } else { "text-gray-400 text-xs" }>
+                                            <span class=if user.role == "admin" { "text-yellow-500 dark:text-yellow-400 text-xs" } else { "text-gray-500 dark:text-gray-400 text-xs" }>
                                                 {if user.role == "admin" { "👑 管理员" } else { "👤 用户" }}
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 text-gray-500 text-xs">{user.created_at.clone()}</td>
+                                        <td class="px-4 py-3 text-gray-400 dark:text-gray-500 text-xs">{user.created_at.clone()}</td>
                                         <td class="px-4 py-3 text-right space-x-2">
                                             <button
-                                                class="text-blue-400 hover:text-blue-300 text-xs"
+                                                class="text-blue-500 dark:text-blue-400 hover:text-blue-400 dark:hover:text-blue-300 text-xs"
                                                 on:click=move |_| open_edit(user_for_edit.clone())
                                             >"编辑"</button>
                                             {if !is_self {
                                                 view! {
                                                     <button
-                                                        class="text-red-400 hover:text-red-300 text-xs ml-2"
+                                                        class="text-red-500 dark:text-red-400 hover:text-red-400 dark:hover:text-red-300 text-xs ml-2"
                                                         on:click=move |_| on_delete(user_id_del.clone())
                                                     >"删除"</button>
                                                 }.into_any()
                                             } else {
-                                                view! { <span class="text-gray-600 text-xs ml-2">"（自己）"</span> }.into_any()
+                                                view! { <span class="text-gray-400 dark:text-gray-600 text-xs ml-2">"（自己）"</span> }.into_any()
                                             }}
                                         </td>
                                     </tr>
@@ -225,18 +225,18 @@ pub fn AdminPage() -> impl IntoView {
             >
                 <form on:submit=on_create class="space-y-3">
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"姓名 *"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"姓名 *"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                             prop:value=new_name
                             on:input=move |ev| new_name.set(event_target_value(&ev))
                             required
                         />
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"邮箱 *"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"邮箱 *"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                             type="email"
                             prop:value=new_email
                             on:input=move |ev| new_email.set(event_target_value(&ev))
@@ -244,9 +244,9 @@ pub fn AdminPage() -> impl IntoView {
                         />
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"密码 *"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"密码 *"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                             type="password"
                             prop:value=new_password
                             on:input=move |ev| new_password.set(event_target_value(&ev))
@@ -254,7 +254,7 @@ pub fn AdminPage() -> impl IntoView {
                         />
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"角色"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"角色"</label>
                         <Select
                             options=vec![
                                 SelectOption::new("user", "👤 普通用户"),
@@ -267,7 +267,7 @@ pub fn AdminPage() -> impl IntoView {
                     <div class="flex gap-3 pt-1">
                         <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm">"创建"</button>
                         <button type="button"
-                            class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm"
+                            class="flex-1 btn-secondary py-2 rounded-lg text-sm"
                             on:click=move |_| show_create.set(false)
                         >"取消"</button>
                     </div>
@@ -282,24 +282,24 @@ pub fn AdminPage() -> impl IntoView {
             >
                 <form on:submit=on_save_edit class="space-y-3">
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"姓名"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"姓名"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                             prop:value=edit_name_val
                             on:input=move |ev| edit_name_val.set(event_target_value(&ev))
                         />
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"邮箱"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"邮箱"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                             type="email"
                             prop:value=edit_email_val
                             on:input=move |ev| edit_email_val.set(event_target_value(&ev))
                         />
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"角色"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"角色"</label>
                         <Select
                             options=vec![
                                 SelectOption::new("user", "👤 普通用户"),
@@ -310,9 +310,9 @@ pub fn AdminPage() -> impl IntoView {
                         />
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">"新密码（留空则不修改）"</label>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">"新密码（留空则不修改）"</label>
                         <input
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
                             type="password"
                             placeholder="不修改请留空"
                             prop:value=edit_password_val
@@ -320,12 +320,12 @@ pub fn AdminPage() -> impl IntoView {
                         />
                     </div>
                     {move || error.get().map(|e| view! {
-                        <div class="bg-red-900/50 border border-red-700 text-red-300 px-3 py-2 rounded-lg text-sm">{e}</div>
+                        <div class="notice-error px-3 py-2 rounded-lg text-sm">{e}</div>
                     })}
                     <div class="flex gap-3 pt-1">
                         <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg text-sm">"保存"</button>
                         <button type="button"
-                            class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm"
+                            class="flex-1 btn-secondary py-2 rounded-lg text-sm"
                             on:click=move |_| show_edit.set(false)
                         >"取消"</button>
                     </div>

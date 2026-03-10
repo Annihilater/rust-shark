@@ -54,13 +54,13 @@ pub fn Modal(
                 on:click=move |_| on_close.run(())
             >
                 <div
-                    class="bg-gray-800 rounded-xl p-6 w-full max-w-lg shadow-2xl border border-gray-700"
+                    class="card rounded-xl p-6 w-full max-w-lg shadow-2xl"
                     on:click=|e: leptos::ev::MouseEvent| e.stop_propagation()
                 >
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="text-lg font-semibold">{move || title.get()}</h2>
                         <button
-                            class="text-gray-400 hover:text-white text-xl leading-none"
+                            class="text-gray-400 hover:text-gray-700 dark:hover:text-white text-xl leading-none"
                             on:click=move |_| on_close.run(())
                         >"✕"</button>
                     </div>

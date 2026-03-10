@@ -62,20 +62,20 @@ pub fn LoginPage() -> impl IntoView {
     };
 
     view! {
-        <div class="min-h-screen bg-gray-900 flex items-center justify-center">
-            <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700">
+        <div class="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+            <div class="card p-8 rounded-2xl shadow-2xl w-full max-w-md">
                 <div class="text-center mb-8">
                     <div class="text-5xl mb-3">"🦈"</div>
-                    <h1 class="text-2xl font-bold text-white">"RustShark"</h1>
-                    <p class="text-gray-400 text-sm mt-1">"网络抓包管理平台"</p>
+                    <h1 class="text-2xl font-bold">"RustShark"</h1>
+                    <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">"网络抓包管理平台"</p>
                 </div>
 
                 <form on:submit=on_submit class="space-y-4">
                     <div>
-                        <label class="block text-sm text-gray-400 mb-1">"邮箱"</label>
+                        <label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">"邮箱"</label>
                         <input
                             type="email"
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-4 py-2.5 text-gray-900 dark:text-white"
                             placeholder="admin@example.com"
                             prop:value=email
                             on:input=move |ev| email.set(event_target_value(&ev))
@@ -83,10 +83,10 @@ pub fn LoginPage() -> impl IntoView {
                         />
                     </div>
                     <div>
-                        <label class="block text-sm text-gray-400 mb-1">"密码"</label>
+                        <label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">"密码"</label>
                         <input
                             type="password"
-                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500"
+                            class="input w-full rounded-lg px-4 py-2.5 text-gray-900 dark:text-white"
                             placeholder="••••••••"
                             prop:value=password
                             on:input=move |ev| password.set(event_target_value(&ev))
@@ -95,7 +95,7 @@ pub fn LoginPage() -> impl IntoView {
                     </div>
 
                     {move || error.get().map(|e| view! {
-                        <div class="bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm">
+                        <div class="notice-error px-4 py-2 rounded-lg text-sm">
                             {e}
                         </div>
                     })}
