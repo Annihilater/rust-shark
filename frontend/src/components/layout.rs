@@ -21,14 +21,14 @@ pub fn Layout(children: Children) -> impl IntoView {
         // 根容器：深/浅色背景由 dark class 控制
         <div class=move || {
             if dark.get() {
-                "flex min-h-screen bg-gray-900 text-gray-100"
+                "flex h-screen overflow-hidden bg-gray-900 text-gray-100"
             } else {
-                "flex min-h-screen bg-gray-50 text-gray-900"
+                "flex h-screen overflow-hidden bg-gray-50 text-gray-900"
             }
         }>
             // ── 侧边栏 ──────────────────────────────────────────
             <aside class=move || {
-                let base = "min-h-screen flex flex-col transition-all duration-200 border-r";
+                let base = "h-screen flex flex-col transition-all duration-200 border-r";
                 let width = if collapsed.get() { "w-16 overflow-hidden" } else { "w-56" };
                 let colors = if dark.get() {
                     "bg-gray-800 border-gray-700"
